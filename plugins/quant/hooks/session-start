@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+#
+# SessionStart hook — states the API version range this bundle was written
+# against, so the model can check it against what the server reports.
+#
+# WHY A HOOK rather than a line in each SKILL.md. The two halves of the check
+# arrive by different routes: the server's `api_version` comes in
+# `ServerInfo.instructions` at `initialize`, and the bundle's range has to come
+# from the bundle. A skill only reaches the model when its description matches
+# what the user is doing — which is exactly the moment the check is too late to
+# be cheap, and would need repeating in all five skills to be reliable at all.
+# SessionStart fires once, before anything.
+#
+# It is deliberately ADVISORY. #190 rejected server-side enforcement: skills are
+# client-side Markdown with no way to assert their version to the server, and
+# hard-failing a paying user mid-session over a bundle version is harsh for a
+# usually-benign mismatch. So this states the range and asks the model to say
+# something; it cannot and should not block.
+set -euo pipefail
+
+PLUGIN_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+COMPAT="$PLUGIN_ROOT/compatibility.json"
+
+# No jq: a hook that depends on a tool the user may not have installed fails
+# closed at session start, which is a worse outcome than the drift it guards.
+MIN="$(sed -n 's/.*"min"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$COMPAT" | head -1)"
+MAX="$(sed -n 's/.*"max"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$COMPAT" | head -1)"
+
+if [ -z "$MIN" ] || [ -z "$MAX" ]; then
+  # Say nothing rather than assert a range we could not read.
+  exit 0
+fi
+
+if [ "$MIN" = "$MAX" ]; then
+  RANGE="api_version $MIN"
+else
+  RANGE="api_version $MIN through $MAX"
+fi
+
+CONTEXT="The Quant skills bundle installed here was written against ${RANGE}. \
+The quant MCP server states the version it speaks in the instructions it sends \
+at connection. If that number falls outside this bundle's range, say so plainly \
+before acting on any of the quant skills: their guidance describes a tool \
+contract that has changed, so following it produces confident advice about a \
+surface that no longer matches. Recommend updating the plugin. This is the only \
+check of its kind — nothing downstream detects a stale bundle, because a stale \
+bundle does not produce errors."
+
+printf '{\n  "hookSpecificOutput": {\n    "hookEventName": "SessionStart",\n    "additionalContext": "%s"\n  }\n}\n' "$CONTEXT"

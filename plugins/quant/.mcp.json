@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "quant": {
+      "type": "http",
+      "url": "${QUANT_MCP_URL}"
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "description": "Tells the model which server versions this skills bundle was written against.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/session-start\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

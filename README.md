@@ -12,10 +12,11 @@ not edit in place** — changes here are overwritten by the next build; edit
 ```
 
 That is one step for two things: the `quant` MCP server and the reviewed skills
-that know how to drive it. Then point it at your endpoint:
+that know how to drive it. It points at the hosted service by default; to use
+another deployment, give its ORIGIN with no path:
 
 ```
-export QUANT_MCP_URL=https://…/mcp
+export QUANT_MCP_URL=https://mcp.example.com
 ```
 
 Full documentation is in [plugins/quant/README.md](plugins/quant/README.md).

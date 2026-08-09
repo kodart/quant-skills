@@ -14,16 +14,24 @@ five reviewed skills that know how to use it well.
 /plugin install quant@quant
 ```
 
-Then set the endpoint you were given when your workspace was provisioned:
+That is all, for the hosted service — it defaults to
+`https://mcp.getquant.dev`. Sign-in happens in the browser on first use.
+
+To point at a different deployment, set the endpoint you were given when your
+workspace was provisioned:
 
 ```
-export QUANT_MCP_URL=https://…/mcp
+export QUANT_MCP_URL=https://mcp.example.com
 ```
 
-The URL is not baked into the plugin because it is per-deployment. `.mcp.json`
-expands the variable at connection time — so **an unset `QUANT_MCP_URL` is the
-one way this install half-works**: the skills load and read normally, and every
-tool call fails, because the server they describe was never connected.
+**Give the ORIGIN, with no path.** The server advertises itself under RFC 9728,
+which derives the discovery document's location from the resource path — so a
+trailing `/mcp` makes a client look for
+`/.well-known/oauth-protected-resource/mcp`, which is not where the document
+lives. Measured against the hosted endpoint: the bare origin answers `200` and
+advertises `"resource": "https://mcp.getquant.dev"`, while the `/mcp`-suffixed
+form answers `401`. The failure surfaces as an authentication problem, which
+sends you looking in the wrong place entirely.
 
 ## What comes with it
 

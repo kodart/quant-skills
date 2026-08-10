@@ -44,17 +44,27 @@ Checklist:
    `verdict` is server-computed; never re-band `deflated_sharpe` yourself, and
    never describe a result as stronger than its verdict says. An absent block
    means the statistic was not answerable, never that the result is clean.
-6. Read `search_effort` beside it. `n_trials` counts only this job's trials, so
+6. **If `duplicate_runs` is present, report it before the leaderboard.** It
+   means some runs came back byte-identical, so an axis you varied did nothing
+   on this data — `distinct` is how much of the search was real. Duplicate rows
+   look exactly like a tie, so a leaderboard where two configs match at every
+   metric is evidence the parameter is inert, not evidence it does not matter
+   in that range. Say which axis was dead and suggest varying something else or
+   narrowing the grid. Note also that `overfitting.n_trials` counts RUNS, so a
+   job with duplicates is corrected as though more strategies were tried than
+   were — conservative, and still not what happened. The field is absent when
+   every run differed; absence is the healthy case and needs no comment.
+7. Read `search_effort` beside it. `n_trials` counts only this job's trials, so
    `distinct_configs` far above it means the correction covered a fraction of the
    search actually performed — and the reported verdict is correspondingly
    optimistic. Mention the gap whenever it is large.
-7. Flag low sample size, concentrated drawdowns, unstable returns, and missing
+8. Flag low sample size, concentrated drawdowns, unstable returns, and missing
    fee/slippage assumptions. Short samples are dominated by variance — the same
    edge yields very different results by trade sequence alone — so never call an
    edge (or a broken strategy) from a small sample or a win/loss streak.
-8. Recommend concrete next tests such as benchmark comparison, parameter sweep,
+9. Recommend concrete next tests such as benchmark comparison, parameter sweep,
    longer sample, broader universe, or execution stress.
-9. Do not claim profitability from a single run.
+10. Do not claim profitability from a single run.
 
 ## Say what the numbers were computed from
 

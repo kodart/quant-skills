@@ -66,6 +66,16 @@ there is not an error and not something to retry.
    spans; pick a `range` inside one of them. `list_indicators` and
    `list_detectors` give the `kind` vocabulary.
 
+   **Read each row's `params` and do not guess param names.** When a catalog
+   row carries `params`, it lists every param that `kind` accepts — `name`,
+   `type`, and `default` where there is one. A param with no `default` is
+   required; one WITH a default is optional and is usually the interesting
+   knob, since omitting it silently accepts whatever the engine picked
+   (`emit_forming` decides whether in-progress episodes are reported at all).
+   Guessing costs a round trip per param and never reveals the optional ones.
+   If a row has no `params` field the server predates it — fall back to
+   submitting and reading the error, which names one missing param at a time.
+
    **Always pass a bounded `range`, however large the coverage is.** `budget`
    caps the points DRAWN, not the rows SCANNED — an indicator is computed over
    every underlying row before anything is decimated — so a small `max_points`

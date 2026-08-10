@@ -71,10 +71,12 @@ there is not an error and not something to retry.
    every underlying row before anything is decimated — so a small `max_points`
    does not make a wide range cheap. Coverage on these feeds runs to years of
    tick-resolution quotes; a full-extent request over one outlives the tool's
-   wait or takes the chart worker down, and the schema's "omit for the feed's
-   full extent" is not a safe default here. Days to a couple of months render
-   comfortably. If the user wants the whole history, chart a representative
-   window and say which one you picked and why.
+   wait, and the schema's "omit for the feed's full extent" is not a safe
+   default here. Days to a couple of months render comfortably. A range too
+   wide is refused with `chart_range_too_wide`, which names a narrower range
+   that would fit — use the one it gives you rather than halving and retrying.
+   If the user wants the whole history, chart a representative window and say
+   which one you picked and why.
 3. Build the spec. `render_chart`'s own input schema documents the envelope —
    read it rather than guessing. The parts no schema can tell you:
    - Declarations bind to the fixed venue ports `"venue"` (raw quote) and
@@ -85,7 +87,12 @@ there is not an error and not something to retry.
      multi-output kinds error rather than silently picking the first.
    - `panel` is `{"Price": 0}` to overlay on price, or `{"Named": "rsi"}` for
      a separate stacked panel. Put oscillators on their own panel.
-4. Report what was drawn — the series, their panels, and the range. Do not
+4. If the call times out, it returns a `chart_id` and the chart is **still
+   rendering** — call `chart_status` with that id after a pause, and again
+   until it reports `"ready"`. Do not resubmit `render_chart`: that starts a
+   second render of a spec already known to be slow. Resubmit only when
+   `chart_status` reports the chart is gone (expired or evicted).
+5. Report what was drawn — the series, their panels, and the range. Do not
    analyze price action unless the user asks.
 
 A minimal spec — 20-period SMA over the mid, on the price panel:

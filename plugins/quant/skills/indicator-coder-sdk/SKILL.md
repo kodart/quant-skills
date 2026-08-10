@@ -21,8 +21,8 @@ or draw it on a chart.
 ## An indicator and a detector are the same thing
 
 The distinction lives at the **output**, not at the component. Declare an
-`Episodes` output and it appears in `bt.list_detectors`; declare `F64`, `Band`
-or `Bar` and it appears in `bt.list_indicators`. Declare both and it appears in
+`Episodes` output and it appears in `list_detectors`; declare `F64`, `Band`
+or `Bar` and it appears in `list_indicators`. Declare both and it appears in
 both — that is normal, not a trick. There is no category field to set.
 
 **Detectors cost more to write than indicators**, though, and the difference is
@@ -180,7 +180,7 @@ bt_module_sdk::export_module! {
 `components:` and `requires:` are the omittable ones. Dropping the line does not
 give you a component-only module; it gives you a macro error.
 
-`bt.publish_strategy_source` returns `component_names` alongside
+`publish_strategy_source` returns `component_names` alongside
 `strategy_names`. Check it: an empty `component_names` on a component-only
 publish means your `components:` entry did not take effect.
 
@@ -230,12 +230,12 @@ module exports is allowed and harmless.
    is what keeps them agreeing.
 3. **Write the source** — the `wire` body, the outputs const, the schema fn, the
    `export_module!` block.
-4. **`bt.check_strategy_source` until green.** It compiles and probes without
+4. **`check_strategy_source` until green.** It compiles and probes without
    registering. Iterate here; a failed publish burns a version number, a failed
    check does not.
-5. **`bt.publish_strategy_source`**, then confirm `component_names` lists what
+5. **`publish_strategy_source`**, then confirm `component_names` lists what
    you expected.
-6. **Prove it renders or composes** — draw it with `bt.render_chart`, or wire it
+6. **Prove it renders or composes** — draw it with `render_chart`, or wire it
    into a strategy and run a backtest. A component nobody has instantiated is
    not known to work.
 7. **Report in trading terms.** Name the parameters and what the series means;

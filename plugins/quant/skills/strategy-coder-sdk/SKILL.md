@@ -76,8 +76,8 @@ configuration with no default and it appears in no tool description, so you
 cannot derive or guess it: **ask the user for it** if you have not been given
 one.
 
-This is the one rule `bt.check_strategy_source` does not check. It goes green on
-a name `bt.publish_strategy_source` then refuses, and the refusal comes back as
+This is the one rule `check_strategy_source` does not check. It goes green on
+a name `publish_strategy_source` then refuses, and the refusal comes back as
 an error naming the expected prefix — not as a gate diagnostic. The exemplar's
 `"bt-module-fixture"` is an engine-internal test artifact that is never
 published; copy its shape, not its name.
@@ -180,7 +180,7 @@ hand-read the few fields you need, and tolerate both `1` and `1.0` for a number.
 If that is more machinery than the strategy warrants, take the byte encoding and
 say in your reply that the parameters are positional.
 
-**`bt.run_sweep` enumerates configs either way.** It takes an explicit
+**`run_sweep` enumerates configs either way.** It takes an explicit
 `configs_hex` list, not a grid: encode each combination yourself and give each
 entry a `note` saying which parameter values it is. Do not describe this to the
 user as a parameter grid — it is an enumerated set of runs you chose.
@@ -259,14 +259,14 @@ you have not seen here.
    when it enters, when it exits, what it costs. No Rust yet.
 3. **Write the source** — the `src/lib.rs` body, the `export_module!` list, and
    the ordered parameter list.
-4. **`bt.check_strategy_source` until it is green.** It compiles and probes
+4. **`check_strategy_source` until it is green.** It compiles and probes
    without registering anything, and returns structured diagnostics. Iterate
    here; every failed publish burns a version number, a failed check does not.
-5. **`bt.publish_strategy_source`.** It returns `module_name`,
+5. **`publish_strategy_source`.** It returns `module_name`,
    `module_version` and `strategy_names`. A published `(name, version)` pair is
    immutable — republishing the same version is refused, so a fix means a new
    version, never an overwrite.
-6. **Backtest it** with `bt.run_backtest`, passing
+6. **Backtest it** with `run_backtest`, passing
    `module: {name, version}` plus `config_hex` (your encoded parameter bytes)
    and a `config_note` recording what those bytes mean. The note is part of the
    job's identity: a retry must repeat it verbatim to replay the same job

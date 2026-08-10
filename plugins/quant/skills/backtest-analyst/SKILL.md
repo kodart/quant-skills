@@ -6,7 +6,7 @@ description: Use after a Quant backtest result is available to diagnose metrics,
 # Backtest Analyst
 
 Interpret only completed backtest jobs. Read a job's results with
-`bt.get_results`; find earlier jobs with `bt.query_runs`.
+`get_results`; find earlier jobs with `query_runs`.
 
 **Know what you actually have.** A job's results are the summary metrics and the
 honesty statistics — nothing else. There is no equity series and no trade-record

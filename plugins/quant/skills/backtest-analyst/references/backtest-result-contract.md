@@ -1,7 +1,7 @@
 # Backtest Result Contract
 
-Results come from `bt.get_results` (and `bt.get_walk_forward_results`) on a job
-id returned by `bt.run_backtest` / `bt.run_sweep` / `bt.run_walk_forward`.
+Results come from `get_results` (and `get_walk_forward_results`) on a job
+id returned by `run_backtest` / `run_sweep` / `run_walk_forward`.
 
 - The summary reports the `metrics_v1` set: `total_return`, `realized_pnl`,
   `trade_count`, `net_sharpe`, `max_drawdown`, `orders_rejected`, `sortino`,

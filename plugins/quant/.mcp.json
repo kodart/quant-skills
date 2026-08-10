@@ -2,7 +2,7 @@
   "mcpServers": {
     "quant": {
       "type": "http",
-      "url": "${QUANT_MCP_URL:-https://mcp.getquant.dev}"
+      "url": "https://mcp.getquant.dev"
     }
   }
 }

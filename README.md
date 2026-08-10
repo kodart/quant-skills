@@ -12,13 +12,14 @@ not edit in place** — changes here are overwritten by the next build; edit
 ```
 
 That is one step for two things: the `quant` MCP server and the reviewed skills
-that know how to drive it. It points at the hosted service by default; to use
-another deployment, give its ORIGIN with no path:
+that know how to drive it. It ships `https://mcp.getquant.dev` as a literal
+URL, so it also installs cleanly as a connector in Claude chat.
 
-```
-export QUANT_MCP_URL=https://mcp.example.com
-```
+To use another deployment, give its ORIGIN with no path, where your client keeps
+it — Claude chat: *Add custom connector*; Claude Code: the plugin's or your
+project's `.mcp.json`. There is no environment-variable override: the connector
+dialog expands nothing, so a `${VAR:-default}` URL is rejected outright (#502).
 
 Full documentation is in [plugins/quant/README.md](plugins/quant/README.md).
 
-Plugin version `0.2.0`.
+Plugin version `0.2.1`.

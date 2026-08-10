@@ -14,15 +14,23 @@ five reviewed skills that know how to use it well.
 /plugin install quant@quant
 ```
 
-That is all, for the hosted service — it defaults to
-`https://mcp.getquant.dev`. Sign-in happens in the browser on first use.
+That is all, for the hosted service — the plugin ships
+`https://mcp.getquant.dev` as a literal URL. Sign-in happens in the browser on
+first use.
 
-To point at a different deployment, set the endpoint you were given when your
-workspace was provisioned:
+The plugin also installs as a **connector in Claude chat**, which is why the URL
+is literal rather than a `${QUANT_MCP_URL:-…}` default: the connector dialog
+expands nothing, so it showed the `${…}` verbatim and refused it with "URL must
+start with 'https'" (#502). A config one client can expand and the other cannot
+is not a portable default.
 
-```
-export QUANT_MCP_URL=https://mcp.example.com
-```
+**To point at a different deployment**, name its origin where your client keeps
+it — there is no single environment variable, for the same reason:
+
+- **Claude chat** — Settings → Connectors → *Add custom connector*, and put the
+  origin in the URL field.
+- **Claude Code** — edit the installed plugin's `.mcp.json`, or declare a
+  project-level `.mcp.json` entry for `quant`, which takes precedence.
 
 **Give the ORIGIN, with no path.** The server advertises itself under RFC 9728,
 which derives the discovery document's location from the resource path — so a

@@ -1,7 +1,7 @@
 {
   "name": "quant",
   "description": "Author, run and honestly judge trading strategies on the Quant backtesting engine",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": {
     "name": "Quant"
   },

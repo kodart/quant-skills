@@ -21,4 +21,4 @@ export QUANT_MCP_URL=https://mcp.example.com
 
 Full documentation is in [plugins/quant/README.md](plugins/quant/README.md).
 
-Plugin version `0.1.0`.
+Plugin version `0.2.0`.

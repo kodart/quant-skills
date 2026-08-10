@@ -7,15 +7,30 @@ description: Create Quant market chart artifacts for BTC, symbols, indicators, a
 
 Use this skill when the user asks to show, chart, plot, or visualize prices, indicators, volume, comparisons, or backtest-related series.
 
-If the request is for an existing backtest/sweep artifact-backed chart, use the legacy Quant chart builders and do not run the market chart scripts. This applies to equity, drawdown, rolling_return, rolling_volatility, sweep_heatmap, and trade_pnl_distribution charts.
+## First: which chart tool do you actually have?
 
-Otherwise follow the market-chart workflow with `quant.create_market_chart`.
+This skill ships in two runtimes that expose **different chart tools**, and the
+names are not interchangeable. Check your own tool list before planning a chart
+— calling the wrong one fails as "no such tool", which reads like charting is
+unavailable when it is not.
 
-Use equity and drawdown chart builders after every completed backtest with an equity curve.
-Use sweep heatmaps only for completed sweep data.
-Do not emit SVG or image-only charts when interactive chart data exists.
+| If your tools include | You are on | Follow |
+|---|---|---|
+| `quant.create_market_chart` | the agent-service runtime | [Market-chart workflow](#market-chart-workflow-agent-service) |
+| `render_chart` | the engine MCP server (`bt-mcp`) | [Engine chart lane](#engine-chart-lane-mcp) |
 
-## Workflow
+Never guess. If neither is present, say charting is unavailable in this session
+rather than describing a chart you cannot produce.
+
+**There are no equity, drawdown, rolling-return, rolling-volatility,
+sweep-heatmap or trade-PnL-distribution chart tools in either runtime.** Those
+names survive as a type union in the codebase, not as anything you can call. In
+particular, do not offer an equity or drawdown chart after a backtest: a job's
+results carry summary metrics only, with **no equity series** (see the
+`backtest-analyst` skill's result contract). Offer a price chart over the run's
+window instead, and say the equity path is not available.
+
+## Market-chart workflow (agent-service)
 
 1. Parse the requested symbol, symbols, date range, interval, chart type, overlays, volume, and comparison series.
 2. Read `references/market-chart-defaults.md` when any market chart input is missing.
@@ -30,3 +45,52 @@ Do not emit SVG or image-only charts when interactive chart data exists.
 If the user asks for analysis, call `quant.analyze_chart_data` with the chart
 artifact `dataRef` and requested analysis modes. Keep user-facing fallback text
 inside Quant's capabilities and do not name competitor products.
+
+## Engine chart lane (MCP)
+
+`render_chart` draws indicators and detectors over a dataset, or overlays a
+completed run's fills and PnL. It takes one spec object and returns a chart id,
+a `btmcp://` resource URI for the full bundle, and inline metadata — read the
+metadata, and do not pull the whole bundle into context to describe it.
+
+1. Read `references/chart-data-context-policy.md` and
+   `references/series-display-rules.md` — the panel and overlay rules apply
+   here unchanged; only the call differs.
+2. Find the data. `list_datasets` gives each dataset's coverage as coalesced
+   spans; pick a `range` inside one of them. `list_indicators` and
+   `list_detectors` give the `kind` vocabulary.
+3. Build the spec. `render_chart`'s own input schema documents the envelope —
+   read it rather than guessing. The parts no schema can tell you:
+   - Declarations bind to the fixed venue ports `"venue"` (raw quote) and
+     `"venue.mid"` (memoized mid). These do not vary by instrument.
+   - A declaration reading another's output uses
+     `{"Decl": {"id": N, "output": "signal"}}`. Omit `output` **only** when the
+     source declaration has exactly one — `macd`, `bollinger` and the other
+     multi-output kinds error rather than silently picking the first.
+   - `panel` is `{"Price": 0}` to overlay on price, or `{"Named": "rsi"}` for
+     a separate stacked panel. Put oscillators on their own panel.
+4. Return the chart id and what was drawn. Do not analyze price action unless
+   the user asks.
+
+A minimal spec — 20-period SMA over the mid, on the price panel:
+
+```json
+{
+  "source": {"dataset": {
+    "provider": "binance-derived", "kind": "quotes", "series": "BTCUSDT.BINANCE",
+    "engine": { "...": "the same EngineSpec shape run_backtest takes" }
+  }},
+  "range": [1735689600010866000, 1735775999658370000],
+  "declarations": [{
+    "id": 1, "label": "SMA(20)", "kind": "sma",
+    "params": {"period": {"Int": 20}},
+    "inputs": [{"Port": "venue.mid"}],
+    "panel": {"Price": 0}
+  }],
+  "budget": {"max_points": 500, "per_decl": {}, "max_annotations_per_decl": 50}
+}
+```
+
+To draw an authored indicator or detector, name its module in
+`source.dataset.modules` and use `module@version::component` as the `kind` — a
+component is not resolvable otherwise, even if some run happens to use it.

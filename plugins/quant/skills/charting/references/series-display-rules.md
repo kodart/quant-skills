@@ -31,7 +31,9 @@ using the previous chart's symbol, date range, interval, chart type, and volume
 setting when those values are available. Add the requested overlay to the new
 `quant.create_market_chart` call, for example `overlays: ["sma"]` or
 `overlays: ["sma:20", "ema:50"]`. Do not claim configurable periods are
-unavailable.
+unavailable. (On the engine MCP lane the same request means adding another
+entry to `declarations` and re-calling `render_chart`; `overlays` is an
+agent-service argument and does not exist there.)
 
 Follow-up requests such as "add MACD" should recreate a new market chart
 artifact using the previous chart's symbol, date range, interval, chart type,

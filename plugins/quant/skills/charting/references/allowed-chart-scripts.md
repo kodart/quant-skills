@@ -1,10 +1,16 @@
 # Chart Endpoint Reference (CLI contract)
 
+**This file describes the agent-service runtime only.** It is the argument
+contract behind `quant.create_market_chart` / `quant.analyze_chart_data`. If
+your tool list has `render_chart` instead, this file does not apply to you —
+see the engine chart lane in SKILL.md, which has its own vocabulary, its own
+port names and its own spec shape.
+
 **You cannot run these scripts.** This session has no shell tool; reach the
 chart endpoints through the `quant.create_market_chart` and
-`quant.analyze_chart_data` tools, which carry the caller's token for you. This
-file is the argument contract those tools mirror — read it to know which
-flags, overlays and indicators are accepted, not as commands to execute.
+`quant.analyze_chart_data` tools, which carry the caller's token for you. Read
+this to know which flags, overlays and indicators are accepted, not as
+commands to execute.
 
 For a human running them from a terminal, every `/chart-data/*` route requires
 a workspace member, so both entrypoints read a caller token from the

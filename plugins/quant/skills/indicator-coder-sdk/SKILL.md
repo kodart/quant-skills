@@ -111,29 +111,52 @@ component composable over anything that produces a scalar — a mid price,
 another indicator's output. Taking `Quote` ties it to raw market data. Prefer
 `F64` unless you genuinely need bid/ask.
 
-### Config is cfgjson_v1 — and you have no JSON parser
+### Config is cfgjson_v1 JSON text
 
-Config arrives as **canonical JSON text**, the same language on both lanes:
-`{"period":14}`. This is the opposite of a strategy, where config is opaque
-positional bytes.
+Config arrives as **JSON text** on both lanes: `{"period":14}`. A strategy that
+declares a schema now takes JSON the same way; what differs is that a
+component's schema is *mandatory* where a strategy's is optional (below).
 
-Your dependency set has no JSON deserializer. `bt-module-sdk` re-exports
-`bt_abi`, `bt_core`, `bt_model` and `schemars` — and schemars *generates*
-schemas, it does not parse them. So:
+Nothing canonicalizes those bytes against your schema before you see them, on
+either lane:
+
+- **Chart lane:** the declaration's typed param map is projected into JSON by
+  `params_as_cfgjson_v1` (`bt-core/src/chart/registry.rs`). It writes the
+  shortest form that round-trips, so an `f64` of `4.0` reaches you as `4`, and
+  it deliberately does not resolve `1` vs `1.0` against your declared type.
+- **Run lane:** the calling strategy's `w.component(...)` passes the bytes it
+  composed, verbatim.
+
+So:
 
 - keep the config **flat and small**, a handful of scalar fields;
-- hand-read the fields you need (the exemplar has a reader worth copying);
-- tolerate both `14` and `14.0` for a number — canonicalization resolves against
-  your schema, and both spellings reach you;
+- tolerate both `14` and `14.0` for a number (`.as_f64()` accepts either) —
+  both spellings genuinely reach you;
 - give every field a documented default and never fail the build on a missing
   one you can default.
 
-### The schema is mandatory, and it decides identity
+**You do have a JSON parser.** Your source builds into `bt-user-module`, which
+depends on `serde_json` directly, so `use serde_json;` compiles — decode into
+`serde_json::Value` and read the fields you need. (`#[derive(serde::Deserialize)]`
+still does not work: `bt_module_sdk::schemars::JsonSchema` is the gate's one
+admitted non-builtin derive.) The exemplar's hand-rolled reader predates that
+dependency and still works, so copying it is fine — but it is no longer the
+only option.
+
+### The schema is mandatory, and it is the published record
 
 A component's `config_schema` is a required `fn() -> String`, not the `Option`
-a strategy gets. The server canonicalizes submitted config against it, so it is
-not documentation: it decides whether two configs are one run or two, and a
-field your schema does not declare is **rejected** rather than ignored.
+a strategy gets. It is collected at load, stored with the module, and served in
+the component catalog — so it is the only durable statement of what your
+config means to whoever wires you later.
+
+**It is not enforced today.** Unlike a strategy's schema — which bt-server
+canonicalizes a submitted `config` against, rejecting undeclared fields and
+collapsing `1`/`1.0` to one run identity — nothing currently canonicalizes or
+validates a *component's* config against this schema on either lane. So a
+caller's typo'd field reaches you silently rather than being refused, and your
+own reader is the only thing standing between a bad config and a wrong number.
+Validate what you read, and default what you can.
 
 Derive it, never hand-write it, so a field cannot be added to the struct and
 forgotten in the schema:

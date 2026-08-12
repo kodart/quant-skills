@@ -15,11 +15,22 @@ Exactly three things:
 
 1. The body of `src/lib.rs` — a `GraphStrategy` implementation and its factory.
 2. The `export_module!` block — the module `name:` and `version:`, and the
-   `strategies:` list.
-3. An ordered parameter list — index, name, and what it means — stated **in your reply to the user**, and repeated as a `//!` doc comment at the top of `lib.rs`. Your reply is the only channel that reaches whoever submits the config bytes; nothing stores your source, and rustc strips doc comments. The comment is a record for whoever reads the module later, not a carrier.
+   `strategies:` list, using the **three-element** `("name", make, schema)`
+   form so the parameters are declared, not just decoded. `schema` is a
+   `fn() -> String` built from a `#[derive(bt_module_sdk::schemars::JsonSchema)]`
+   params struct — see Parameters below.
+3. Nothing else — no parameter list belongs in your reply. The schema **is**
+   the parameter list: it is stored in the module registry and
+   `GET /v1/strategies` returns it, so it survives long after this
+   conversation ends, which your reply does not.
 
 You never write a `Cargo.toml`. See [the exemplar](references/exemplar-module.md)
-for a module that really compiles and loads.
+for a module that really compiles and loads, and
+[the SDK surface reference](references/sdk-surface.md) for the mechanically
+generated, exhaustive answer to "what's the full path of this type", "what
+`PayloadKind` does this stream have", and "what nodes exist for bars,
+indicators and pattern detectors" — check it **before** probing the compiler
+or guessing that a capability (a bar, an indicator) does not exist.
 
 ## Standing rules
 
@@ -64,7 +75,8 @@ a mismatch rather than decoding garbage.
 Your source declares no dependencies of its own. The manifest belongs to the build service, and already carries `bt-module-sdk` and `bt-core`. A dependency added there changes `Cargo.lock`, rotates the build fingerprint, and the module will not load.
 
 This is a build-breaking constraint, not a style preference. Write what you need
-using `bt_module_sdk` and `bt_core` only.
+using `bt_module_sdk`, `bt_core` and — for decoding your own JSON config —
+`serde_json`, which the manifest also carries directly; nothing else.
 
 ### The module name is namespaced
 
@@ -112,33 +124,17 @@ is wrong.
 ### Parameters
 
 Parameters always arrive as opaque bytes in `make(config: &[u8])`, whichever
-encoding you pick. You decode them by hand — nothing decodes them for you, in
-either case.
-
-Every decoded parameter must also appear, in the same order, in
-`identity_params()` as `to_bits()`. `identity_params` is identity, not input: omitting a parameter there makes two differently-parameterised strategies indistinguishable to the engine.
-
-Validate any value used as a period is finite, positive and integral before
-`as usize`: a negative f64 saturates to 0 rather than erroring.
-
-**Default: positional little-endian `f64`s** in declared order. `config.len()`
-must equal `8 * n`; reject any other length with a `String` error naming the
-expected count. For two or more parameters, slice the buffer per index — the
-exemplar's `try_into()` on the whole buffer only works for a single `f64`. (The
-exemplar also reports its length in bytes; report the expected parameter count
-instead.)
-
-Nothing in the system stores what those bytes mean. `GET /v1/strategies` reports
-`config_schema: null`, so **the ordered parameter list you state in your reply is
-the only record of it** — and a typo'd or mis-ordered value is caught only by
-your own length check, at run time.
+encoding you pick. Declare a config schema by default (below) — it is what
+lets `run_backtest`/`run_sweep` take plain JSON instead of a hand-encoded hex
+blob, and it is the only record of what a config means that outlives your
+reply to the user. Fall back to raw bytes only when there is nothing worth
+naming (see "The byte-encoding fallback" below).
 
 #### Declaring a config schema
 
-You can do better than that, and should whenever the user will care about the
-parameters by name. `export_module!`'s **three-element** strategy form,
-`("name", make, schema)`, adds a `fn() -> String` returning JSON Schema **text**
-alongside the same factory. Both forms may appear in one `strategies:` list.
+`export_module!`'s **three-element** strategy form, `("name", make, schema)`,
+pairs your factory with a `fn() -> String` returning JSON Schema **text**.
+Both the two- and three-element forms may appear in one `strategies:` list.
 
 Derive the schema rather than writing the text, so a field cannot be added to the
 struct and forgotten in the schema:
@@ -159,31 +155,82 @@ fn my_config_schema() -> String {
 ```
 
 Write that derive as **exactly** `bt_module_sdk::schemars::JsonSchema` — the gate
-admits that one path segment for segment, so a `use` alias or a leading `::` is
-refused. `#[schemars(crate = "bt_module_sdk::schemars")]` is required: the derive
-emits `schemars::` paths and your module depends only on `bt-module-sdk`, which
-re-exports it.
+admits that one path segment for segment (#308), so a `use` alias or a leading
+`::` is refused, and it is the **only** non-builtin derive the gate admits
+anywhere in your source. `#[schemars(crate = "bt_module_sdk::schemars")]` is
+required: the derive emits `schemars::` paths and your module depends only on
+`bt-module-sdk`, which re-exports it.
 
-What declaring one buys, all of it server-side: the config is canonicalized
-against the schema at submit, so a field the schema does not declare is
-**rejected** instead of silently ignored, and `{"period": 1}` and
-`{"period": 1.0}` resolve to one job identity rather than two. The parameters
-also become discoverable — `GET /v1/strategies` answers with the schema instead
-of `null`.
+**The schema IS the parameter list.** It is stored in the module registry —
+`GET /v1/strategies` returns it instead of `null` — so that record is what a
+config means to whoever submits one later, not anything stated in a reply.
+
+What declaring one buys, all of it server-side: a field the schema does not
+declare is **rejected** instead of silently ignored, and `{"period": 1}` and
+`{"period": 1.0}` resolve to one job identity rather than two.
 
 What it does **not** buy: a decoder. Config still reaches your factory as the
 bytes the caller submitted, uncanonicalized, and you must parse the JSON
-yourself. There is no JSON deserializer in your dependency set — `bt-module-sdk`
-re-exports `bt_abi`, `bt_core`, `bt_model` and `schemars`, and schemars generates
-schemas, it does not parse them. So keep a declared config **flat and small**,
-hand-read the few fields you need, and tolerate both `1` and `1.0` for a number.
-If that is more machinery than the strategy warrants, take the byte encoding and
-say in your reply that the parameters are positional.
+yourself. `serde_json` is available for that — `bt-user-module` (the crate
+your source actually builds into) depends on it directly, so `use
+serde_json;` compiles. Decode into `serde_json::Value` and hand-read the
+fields you need: `#[derive(serde::Deserialize)]` does not work here, since
+`bt_module_sdk::schemars::JsonSchema` is the gate's one admitted non-builtin
+derive, and it is for the schema struct above, not for `make`'s input. Keep a
+declared config **flat and small** and tolerate both `1` and `1.0` for a
+number (`.as_f64()` accepts either):
 
-**`run_sweep` enumerates configs either way.** It takes an explicit
-`configs_hex` list, not a grid: encode each combination yourself and give each
-entry a `note` saying which parameter values it is. Do not describe this to the
-user as a parameter grid — it is an enumerated set of runs you chose.
+```rust
+pub fn make(config: &[u8]) -> Result<Box<dyn GraphStrategy>, String> {
+    let v: serde_json::Value = serde_json::from_slice(config)
+        .map_err(|e| format!("bad config: {e}"))?;
+    let period = v["period"]
+        .as_f64()
+        .ok_or_else(|| "period must be a number".to_string())? as u32;
+    // ...
+}
+```
+
+Every decoded parameter must also appear, in the same order, in
+`identity_params()` as `to_bits()`. `identity_params` is identity, not input: omitting a parameter there makes two differently-parameterised strategies indistinguishable to the engine.
+
+Validate any value used as a period is finite, positive and integral before
+`as usize`: a negative f64 saturates to 0 rather than erroring.
+
+**Submitting it.** `run_backtest`'s `config` field takes the same JSON your
+schema describes, directly — no hex, no manual byte layout:
+`config: {"period": 14}`. `run_sweep`/`run_walk_forward`'s `configs` field is
+the sweep equivalent, one JSON object per run:
+`configs: [{"period": 10}, {"period": 20}]`. Passing `config` and
+`config_hex` together (or `configs` and `configs_hex` together) is refused —
+pick exactly one.
+
+#### The byte-encoding fallback
+
+Skip the schema only when there is nothing worth naming — no config at all,
+or a throwaway never meant to be resubmitted. Then the two-element
+`("name", make)` form is fine, and `make` decodes whatever bytes you choose.
+
+**Default: positional little-endian `f64`s** in declared order. `config.len()`
+must equal `8 * n`; reject any other length with a `String` error naming the
+expected count. For two or more parameters, slice the buffer per index — the
+exemplar's `try_into()` on the whole buffer only works for a single `f64`. (The
+exemplar also reports its length in bytes; report the expected parameter count
+instead.)
+
+Nothing in the system stores what those bytes mean on this path —
+`GET /v1/strategies` reports `config_schema: null` for a strategy declared
+this way — so the record has to travel with the job itself:
+`run_backtest`/`run_sweep` take `config_hex`/`configs_hex` (your encoded
+bytes) alongside a `config_note`/per-entry `note` saying what they mean,
+stored with the job and returned by `get_results`. A typo'd or mis-ordered
+value is caught only by your own length check, at run time.
+
+**`run_sweep` enumerates configs either way.** It takes an explicit list, not
+a grid: `configs` (JSON, one object per run) on the typed path above, or
+`configs_hex` (hex, one entry per run, each with a `note`) on this one. Do not
+describe this to the user as a parameter grid —
+it is an enumerated set of runs you chose.
 
 ### The wiring API
 
@@ -204,8 +251,13 @@ rest are the engine reporting back to you:
 | `w.residuals()` | `Stream<Residual>` — the executor reporting it stood down short of target |
 | `w.timer(spec)` | `Stream<TimerTick>` |
 
-**There is no `w.bars()`.** A bar-based idea must be rebuilt on quotes or
-trades, or declined.
+**There is no `w.bars()` accessor** — but a bar is not a missing capability.
+It is an ordinary node: `w.add(BarAggregator::new(mid_stream, interval_ns))`
+(or `TimerBarAggregator`/`TradeBarAggregator` for exact-boundary or
+trade-price bars) composed over `w.quotes()`/`w.trades()`, the same way every
+indicator in the node catalogue is composed. See
+[the SDK surface reference, §4](references/sdk-surface.md#4-the-node-catalogue)
+before telling a user a bar-based idea can't be built here — it can.
 
 `w.portfolio()` is how you read your own position. Do not hand-track fills.
 
@@ -244,12 +296,38 @@ you never gave to `sub` or `peek` — a runtime abort, not a compiler error.
 `Quantity`, not `f64`. Call `.as_f64()` before arithmetic.
 
 **Commands.** `Cmd::target(qty)` sets a desired position on the run's
-instrument — it is a target, not a delta, so re-emitting the same value every
-epoch is harmless and needs no edge-detection state. It is the only targeting
-command available here: `Cmd::target_for` addresses a basket member, takes an
-`InstrumentId` rather than an index, and fails the run outright under the
-single-instrument executor this path builds. Other variants exist; do not use one
-you have not seen here.
+instrument. **`qty` is the desired signed position, in lots** — the engine's
+own doc comment on `Cmd::Target` (`bt-core/src/graph_engine/mod.rs`) says so
+exactly: "Desired signed position in lots". It is not notional currency, not
+a fraction of equity, and not "one unit of the base asset" unless the
+instrument's lot size happens to be 1 — see the worked example below before
+guessing. `Cmd::target` is a **target, not a delta**: it is absolute
+(`Cmd::target(5.0)` sent twice in a row leaves the position at 5.0 lots, not
+10.0) and idempotent (re-emitting the same value every epoch is harmless and
+needs no edge-detection state) —
+`target_reaches_flattens_and_reconciliation_is_idempotent`
+(`bt-core/tests/suite/exec_e2e.rs`) pins both properties. Negative `qty` is
+short; `0.0` flattens.
+
+**Worked example: converting an equity fraction to lots.** To put 20% of
+equity into a position at a price of $50,000/lot, with equity read fresh from
+`w.portfolio()` each epoch:
+
+```rust
+let equity = ctx.s(self.portfolio)[0].equity.as_f64(); // e.g. 100_000.0
+let price = ctx.s(self.quotes)[0].ask.as_f64();          // e.g. 50_000.0
+let qty = 0.20 * equity / price;                         // 0.4 lots
+Some(vec![Cmd::target(qty)])
+```
+
+The executor still floors this to a whole multiple of `size_increment` (see
+"Order sizing quantizes for you" above) — a fraction smaller than one
+increment rounds to zero and places nothing, silently.
+
+It is the only targeting command available here: `Cmd::target_for` addresses
+a basket member, takes an `InstrumentId` rather than an index, and fails the
+run outright under the single-instrument executor this path builds. Other
+variants exist; do not use one you have not seen here.
 
 ## Workflow
 
@@ -257,8 +335,8 @@ you have not seen here.
    instrument, the timeframe, and what the edge is supposed to be.
 2. **Write the prose spec and get the user's confirmation.** What it trades,
    when it enters, when it exits, what it costs. No Rust yet.
-3. **Write the source** — the `src/lib.rs` body, the `export_module!` list, and
-   the ordered parameter list.
+3. **Write the source** — the `src/lib.rs` body and the `export_module!` list,
+   three-element form, schema included.
 4. **`check_strategy_source` until it is green.** It compiles and probes
    without registering anything, and returns structured diagnostics. Iterate
    here; every failed publish burns a version number, a failed check does not.
@@ -266,11 +344,13 @@ you have not seen here.
    `module_version` and `strategy_names`. A published `(name, version)` pair is
    immutable — republishing the same version is refused, so a fix means a new
    version, never an overwrite.
-6. **Backtest it** with `run_backtest`, passing
-   `module: {name, version}` plus `config_hex` (your encoded parameter bytes)
-   and a `config_note` recording what those bytes mean. The note is part of the
-   job's identity: a retry must repeat it verbatim to replay the same job
-   rather than create a second one.
+6. **Backtest it** with `run_backtest`, passing `module: {name, version}` plus
+   either `config` — plain JSON matching your schema, the normal path, and
+   self-describing so no `config_note` is needed — or, only for a schema-less
+   module, `config_hex` (your encoded parameter bytes) and a `config_note`
+   recording what those bytes mean. Passing both is refused. Either way the
+   submission is part of the job's identity: a retry must repeat it verbatim
+   to replay the same job rather than create a second one.
 7. **Report in trading terms.** Name the parameter values, not the bytes; never
    show the user Rust source, tool payloads or build diagnostics.
 

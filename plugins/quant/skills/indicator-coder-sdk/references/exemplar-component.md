@@ -49,11 +49,14 @@ fn vol_bands_config_schema() -> String {
         .to_string()
 }
 
-/// Reads one numeric field out of canonical cfgjson_v1.
+/// Reads one numeric field out of cfgjson_v1.
 ///
-/// Hand-written because there is NO JSON parser in the dependency set —
-/// `bt-module-sdk` re-exports `schemars`, which *generates* schemas and does
-/// not parse them. This is the part most component authors get wrong.
+/// Hand-written because `bt-module-sdk` re-exports `schemars`, which
+/// *generates* schemas and does not parse them. `bt-user-module` has since
+/// gained a direct `serde_json` dependency, so `serde_json::from_slice` into
+/// a `Value` is now available too and is the shorter path; this reader is
+/// kept because it still works and shows the two rules below. Parsing config
+/// is the part most component authors get wrong either way.
 ///
 /// Two rules it encodes:
 ///

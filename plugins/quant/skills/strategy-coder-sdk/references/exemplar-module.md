@@ -99,6 +99,15 @@ bt_module_sdk::export_module! {
   `fn() -> String` returning JSON **text** — only that string crosses the module
   boundary, so the schemars version never becomes part of the ABI. Both forms
   may appear in one list, as they do above.
+- **`fixture.buy_once_v2` reuses `make_buy_once` to demonstrate the export
+  macro's three-element *syntax*, not how to decode a declared config.**
+  `make_buy_once` still decodes 8 raw little-endian bytes — the two-element
+  `fixture.buy_once`'s format — because this fixture is dlopen'd directly by
+  bt-host's loader tests and never goes through a real submission. A strategy
+  that actually declares a schema receives its config as JSON bytes instead
+  (whatever was submitted, uncanonicalized) and must decode it with
+  `serde_json::from_slice` — see SKILL.md's Parameters section, not this
+  factory.
 - Every decoded parameter reappears in `identity_params` as `to_bits()`.
 - `checkpoint_state` returns `Some` because `BuyOnce` holds `sent` across
   epochs. A strategy that holds nothing must instead declare statelessness —

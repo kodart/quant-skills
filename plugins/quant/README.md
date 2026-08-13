@@ -5,7 +5,7 @@ engine, from inside Claude Code.
 
 Installing this plugin gives you two things in one step: the `quant` MCP server
 (datasets, strategy authoring, backtests, sweeps, walk-forward, results) and the
-five reviewed skills that know how to use it well.
+seven reviewed skills that know how to use it well.
 
 ## Install
 
@@ -47,9 +47,11 @@ sends you looking in the wrong place entirely.
 |---|---|
 | `strategy-researcher` | Turning an idea or a source into a testable hypothesis |
 | `strategy-coder-sdk` | Writing a strategy module against the engine's Rust SDK |
+| `indicator-coder-sdk` | Writing a reusable indicator or detector component against the engine's Rust SDK |
 | `backtest-analyst` | Reading a result — metrics, and the honesty statistics |
 | `risk-reviewer` | Drawdown, sizing, ruin, and multiple-testing risk |
 | `charting` | Producing charts from run data |
+| `market-screener` | Scanning historical datasets — metrics, levels, trendlines, formations |
 
 The skills are plain Markdown. They are activated by description matching, so
 Claude picks one up when the conversation calls for it; you can also read them

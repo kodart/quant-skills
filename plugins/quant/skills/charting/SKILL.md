@@ -40,13 +40,43 @@ window instead, and say the equity path is not available.
 6. Read `references/chart-artifacts.md` when choosing a Quant chart artifact shape.
 7. Call `quant.create_market_chart` with explicit arguments. Use `lookback_days` for "last N days" requests when exact start/end timestamps are not already specified. Use the allowlisted script references only as implementation-contract context.
 8. Return the compact chart artifact from the tool.
-9. Do not analyze price action unless the user asks for analysis.
+9. If your tool list has BOTH `quant.get_widget_payload` and a visualization
+   tool, additionally draw the chart inline in the reply — read
+   `references/inline-chat-charts.md` for the payload call and the exact
+   snippet. Without both tools, the artifact alone is the answer.
+10. Do not analyze price action unless the user asks for analysis.
 
 If the user asks for analysis, call `quant.analyze_chart_data` with the chart
 artifact `dataRef` and requested analysis modes. Keep user-facing fallback text
 inside Quant's capabilities and do not name competitor products.
 
 ## Engine chart lane (MCP)
+
+**Two tools draw here, and they answer different questions.** Pick by what the
+user wants, not by which you saw first:
+
+| The user wants | Call | Why |
+|---|---|---|
+| to SEE a chart | `render_chart_app` | draws an interactive view in the conversation |
+| the VALUES, to reason about | `render_chart` | returns the series to you |
+
+`render_chart_app` exists only where the host renders MCP Apps. If it is not in
+your tool list, this section's `render_chart` workflow is the whole story.
+
+Its result is a short acknowledgement, **not** the data — deliberately. The view
+fetches its own data through the host, so a full-resolution chart costs you
+nothing in context. Two consequences worth holding on to:
+
+- **You cannot describe what it drew.** You never received the series. Say what
+  you charted, not what it shows. If the user then asks about the shape, call
+  `render_chart` for the numbers.
+- **Never call `chart_widget_payload` yourself.** It is the view's own data
+  call. Calling it directly dumps the whole series into the transcript, which
+  is exactly the cost this lane avoids — and it hands you a payload you would
+  then have to summarize by eye.
+
+If the host renders no view, `render_chart_app`'s own text says so; fall back to
+`render_chart` rather than insisting a chart appeared.
 
 `render_chart` draws indicators and detectors over a dataset, or overlays a
 completed run's fills and PnL. It takes one spec object and returns the bundle:
@@ -65,6 +95,14 @@ there is not an error and not something to retry.
 2. Find the data. `list_datasets` gives each dataset's coverage as coalesced
    spans; pick a `range` inside one of them. `list_indicators` and
    `list_detectors` give the `kind` vocabulary.
+
+   Two level-map detectors render as overlays rather than event markers:
+   `sr_levels` (multi-touch horizontal S/R — draws each level as a horizontal
+   line spanning its active window) and
+   `trendlines` (3-touch sloped lines drawn a → last touch). Both appear in
+   `list_detectors` only on engines that ship them — check the list rather
+   than assuming. Scale their tolerance params by timeframe (the
+   market-screener skill's tables give the schedule).
 
    **Read each row's `params` and do not guess param names.** When a catalog
    row carries `params`, it lists every param that `kind` accepts — `name`,

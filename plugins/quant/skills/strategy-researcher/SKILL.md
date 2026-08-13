@@ -24,6 +24,15 @@ Workflow:
 6. Propose only testable strategy hypotheses.
 7. Ask for missing universe, timeframe, sizing, and risk constraints before creating a manifest.
 
+## Formations as evidence
+
+Built-in detector episodes are testable evidence, not signals: "range
+compression preceded the impulse on this dataset" is a hypothesis you can
+quantify by rendering `range`, `breakout`, `sr_levels` or `trendlines`
+episodes over the window (see the market-screener skill) and counting
+outcomes. Cite the dataset, window and detector params when using a
+formation as supporting evidence for a proposed strategy.
+
 ## Video research (background)
 
 When the user shares a YouTube link containing a strategy or indicator, call

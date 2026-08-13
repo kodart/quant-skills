@@ -60,8 +60,19 @@ user wants, not by which you saw first:
 | to SEE a chart | `render_chart_app` | draws an interactive view in the conversation |
 | the VALUES, to reason about | `render_chart` | returns the series to you |
 
-`render_chart_app` exists only where the host renders MCP Apps. If it is not in
-your tool list, this section's `render_chart` workflow is the whole story.
+**`render_chart_app` being in your tool list does NOT mean this host can draw
+it.** It is registered unconditionally, so it is offered everywhere; only the
+host's `initialize` says whether a view can appear, and you never see that.
+MCP Apps is supported by Claude web and desktop, VS Code, Goose and Postman —
+Claude Code is not among them.
+
+So let the tool answer. On a host that cannot render, it refuses, naming
+`render_chart`: switch to that and say the interactive view is unavailable
+here, rather than reporting a chart nobody can see. (Against a server that
+predates that check, the failure is silent instead — you get "view opened"
+and no view. If the user says no chart appeared, believe them and fall back;
+you cannot see the view yourself, so their report is the only evidence there
+is.)
 
 Its result is a short acknowledgement, **not** the data — deliberately. The view
 fetches its own data through the host, so a full-resolution chart costs you
@@ -75,8 +86,10 @@ nothing in context. Two consequences worth holding on to:
   is exactly the cost this lane avoids — and it hands you a payload you would
   then have to summarize by eye.
 
-If the host renders no view, `render_chart_app`'s own text says so; fall back to
-`render_chart` rather than insisting a chart appeared.
+A host that negotiated MCP Apps can still fail to mount the view — that has
+been reported for custom remote connectors. So "view opened" is what the
+server offered, not proof of what the user sees. If they say no chart
+appeared, fall back to `render_chart` rather than insisting one did.
 
 `render_chart` draws indicators and detectors over a dataset, or overlays a
 completed run's fills and PnL. It takes one spec object and returns the bundle:

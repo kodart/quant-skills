@@ -117,7 +117,18 @@ recommended starting points, not defaults.
   timeframe), `min_touches` (2), `lookback` (1000), `emit_forming`.
 - `trendlines` — 3-touch sloped lines. Params: `pivot_k`, `touch_tol`
   (0.0005 on 1m … 0.006 on 1d), `max_pivots` (32), `emit_forming`.
+- For a timeframe between the two endpoints, interpolate log-linearly in
+  bar duration (Digash's own schedule is approximately log-linear): at 1h,
+  that puts `merge_tol` ≈ 0.0056 and `touch_tol` ≈ 0.0020 — roughly
+  midway on a log scale between the 1m and 1d endpoints, not a linear
+  average of them.
 - Formation vocabulary → engine kinds: references/formation-mapping.md.
+- Trendlines on noisy low-timeframe data yield many candidate lines —
+  high candidate density is expected there, not a defect (the engine's
+  calibrated false-positive budget for the detector is a regression
+  tripwire on its own test suite, not a quality bar for how many lines a
+  chart should show). Prefer a higher timeframe or a tighter `touch_tol`
+  when the chart gets crowded.
 
 Render them with the charting skill's engine-chart-lane workflow.
 

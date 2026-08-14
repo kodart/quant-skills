@@ -156,13 +156,29 @@ there is not an error and not something to retry.
 5. Report what was drawn — the series, their panels, and the range. Do not
    analyze price action unless the user asks.
 
-A minimal spec — 20-period SMA over the mid, on the price panel:
+A minimal spec — 20-period SMA over the mid, on the price panel. **`engine` is
+not optional and none of its fields default**: all ten below are required, and
+leaving one out is refused with *"chart spec source.dataset.engine is not a
+valid engine spec: missing field …"*. Copy the block and change the instrument;
+the only optional field is `account` (`"cash"` by default, `"margin"` to let
+shorts settle).
 
 ```json
 {
   "source": {"dataset": {
     "provider": "binance-derived", "kind": "quotes", "series": "BTCUSDT.BINANCE",
-    "engine": { "...": "the same EngineSpec shape run_backtest takes" }
+    "engine": {
+      "instrument_id": "BTCUSDT.BINANCE",
+      "base": "BTC",
+      "quote": "USDT",
+      "price_increment": "0.01",
+      "qty_increment": "0.00001",
+      "maker_bps": 1,
+      "taker_bps": 5,
+      "latency_outbound_ns": 0,
+      "latency_inbound_ns": 0,
+      "initial_cash": 100000
+    }
   }},
   "range": [1735689600010866000, 1735775999658370000],
   "declarations": [{
@@ -176,5 +192,6 @@ A minimal spec — 20-period SMA over the mid, on the price panel:
 ```
 
 To draw an authored indicator or detector, name its module in
-`source.dataset.modules` and use `module@version::component` as the `kind` — a
-component is not resolvable otherwise, even if some run happens to use it.
+`source.dataset.modules` — a list of `{"name": …, "version": …}` pairs — and use
+`module@version::component` as the `kind`. A component is not resolvable
+otherwise, even if some run happens to use it.

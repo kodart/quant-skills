@@ -22,4 +22,4 @@ dialog expands nothing, so a `${VAR:-default}` URL is rejected outright (#502).
 
 Full documentation is in [plugins/quant/README.md](plugins/quant/README.md).
 
-Plugin version `0.7.1`.
+Plugin version `0.7.2`.

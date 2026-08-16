@@ -61,8 +61,20 @@ id returned by `run_backtest` / `run_sweep` / `run_walk_forward`.
 `get_results` carries a `warnings` array of finished English sentences the
 server wrote about this job. **It is absent on a healthy job, not an empty
 list**, so its presence is itself the signal — the same convention
-`duplicate_runs` uses. Two things put sentences in it, and both fire on the
-same threshold: a run with strictly more `orders_rejected` than `trade_count`.
+`duplicate_runs` uses.
+
+**Ruin comes first when it fires.** A run whose `total_return` is `-1.0` lost
+all of its capital; anything BELOW `-1.0` ended underwater — the account owed
+more than it had. That is reachable because v1 margin is unconstrained (no
+borrow limit, no interest, no margin call), so an ordinary
+`account: "margin"` submission can bury itself in a way no real venue would
+permit. Read such a run as a path that ended, not a strategy you can size,
+and do not quote its risk statistics as though they described a tradeable
+edge. `orders_rejected` is typically 0 on these, so the rejection warnings
+below stay silent and this is the only sentence that names it.
+
+The rest fire on one threshold: a run with strictly more `orders_rejected`
+than `trade_count`.
 
 - **Per row**, for any of the ten leaderboard rows that crosses it. The
   sentence names the count, the ratio, and the single most common cause. A row

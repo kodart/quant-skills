@@ -1,44 +1,44 @@
 # Series Display Rules
 
-Choose the chart layout from the requested series:
+How to lay out what the user asked for. These are presentation rules — they
+apply to any `render_chart` / `render_chart_app` spec, and none of them is a
+substitute for reading the tool's own input schema and the catalog rows'
+`params`.
 
-- A single OHLC market series uses one candlestick price panel.
-- Price-derived indicators with the same value scale as the price, such as EMA, SMA, VWAP, and Bollinger bands, overlay in the same price panel.
-- `close` is a base series field, not an overlay argument.
-- Supported market overlays: `sma`, `ema`, `vwap`, and `bollinger`.
-- Window syntax: `sma:20`, `ema:50`, and `bollinger:20`.
-- The default overlay window is `20` when the user omits a period.
-- `vwap` does not accept a window.
-- Overlays are only supported for single-symbol market charts.
-- Single-symbol market charts accept up to five overlays.
-- Same value scale comparison series can share one panel as line series.
-- Different-scale or different-semantics series use stacked panels with a shared time axis.
-- Use `indicators` for registered chart indicators that are not price overlays.
-- Non-price indicators default to stacked subplots when they share the market chart time axis.
-- MACD is requested as an indicator subplot, not as a price overlay.
-- `macd` defaults to fast 12, slow 26, and signal 9.
-- Unsupported indicator names are rejected by Quant validation.
-- RSI, volatility, returns, exposure, drawdown, and position series are not market overlays unless Quant registers them as chart indicators.
-- Existing backtest/sweep artifact series use legacy Quant artifact builders.
-- Concatenated series means stacked panels with a shared time axis, not appending one symbol's time series after another in time.
-- One line series uses `line`.
-- Multiple line, comparison, or indicator series use `multi_series` as the returned artifact kind Quant chooses for the chart artifact.
-- The executable request for those cases still uses --chart line with --symbols for multi-symbol lines or structured --panel entries for stacked layouts.
-- OHLC with optional overlays remains `candlestick`.
+## Panels
 
-Follow-up requests such as "add SMA" should recreate a new market chart artifact
-using the previous chart's symbol, date range, interval, chart type, and volume
-setting when those values are available. Add the requested overlay to the new
-`quant.create_market_chart` call, for example `overlays: ["sma"]` or
-`overlays: ["sma:20", "ema:50"]`. Do not claim configurable periods are
-unavailable. (On the engine MCP lane the same request means adding another
-entry to `declarations` and re-calling `render_chart`; `overlays` is an
-agent-service argument and does not exist there.)
+- A single market series is one price panel.
+- **Price-scale indicators overlay the price panel**: EMA, SMA, VWAP,
+  Bollinger bands — anything whose values live in the same units as price.
+  Give these `"panel": {"Price": 0}`.
+- **Everything else gets its own stacked panel**, sharing the time axis:
+  `"panel": {"Named": "rsi"}`. Oscillators and unbounded-scale series belong
+  here — RSI, MACD, volatility, returns, exposure, drawdown, position size.
+  **MACD is a subplot, never a price overlay.**
+- Comparison series on the **same** value scale can share one panel as lines.
+  Different scale or different semantics → separate stacked panels.
+- "Concatenated series" means stacked panels with a shared time axis. It never
+  means appending one symbol's series after another in time.
 
-Follow-up requests such as "add MACD" should recreate a new market chart
-artifact using the previous chart's symbol, date range, interval, chart type,
-and volume setting when those values are available. Add
-`indicators: [{ "capability": "macd" }]` unless the user specifies custom
-MACD parameters.
+## Composing declarations
 
-Explain the display choice briefly in the response. Do not include raw values.
+- A declaration reads another's output with
+  `{"Decl": {"id": N, "output": "signal"}}`. Omit `output` **only** when the
+  source declaration has exactly one — `macd`, `bollinger` and the other
+  multi-output kinds error rather than silently picking the first.
+- Declarations bind to the fixed venue ports `"venue"` (raw quote) and
+  `"venue.mid"` (memoized mid). These do not vary by instrument.
+
+## Follow-up requests
+
+"Add SMA", "add MACD", "now show it with Bollinger" — **add another entry to
+`declarations` and re-call `render_chart`**, reusing the previous spec's
+`source`, `range` and `budget`. Do not tell the user that periods or
+parameters are not configurable; they are, through each declaration's
+`params`. Read the catalog row's `params` for the names rather than guessing.
+
+## Reporting
+
+Explain the display choice briefly — which series, on which panels, over what
+range. **Do not include raw values**, and do not analyze price action unless
+the user asked for analysis.

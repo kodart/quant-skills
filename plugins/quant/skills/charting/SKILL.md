@@ -1,56 +1,49 @@
 ---
 name: charting
-description: Create Quant market chart artifacts for BTC, symbols, indicators, and multi-series requests while keeping raw series data out of model context.
+description: Draw price, indicator and detector charts on the Quant engine with render_chart and render_chart_app, keeping raw series data out of model context.
 ---
 
 # Charting
 
-Use this skill when the user asks to show, chart, plot, or visualize prices, indicators, volume, comparisons, or backtest-related series.
+Use this skill when the user asks to show, chart, plot, or visualize prices,
+indicators, volume, comparisons, or backtest-related series.
 
-## First: which chart tool do you actually have?
+**There is one chart lane: the engine's MCP tools** — `render_chart`,
+`render_chart_app`, `chart_widget_payload` and `chart_status`. If your tool
+list has none of them, say charting is unavailable in this session rather than
+describing a chart you cannot produce.
 
-This skill ships in two runtimes that expose **different chart tools**, and the
-names are not interchangeable. Check your own tool list before planning a chart
-— calling the wrong one fails as "no such tool", which reads like charting is
-unavailable when it is not.
+(An older `quant.create_market_chart` tool, a `scripts/quant-chart` CLI and a
+`/chart-data/*` HTTP lane are all **gone** — deleted with the agent-service
+runtime in the 2026-08-14 service consolidation. If you find guidance naming
+any of them, it is stale.)
 
-| If your tools include | You are on | Follow |
-|---|---|---|
-| `quant.create_market_chart` | the agent-service runtime | [Market-chart workflow](#market-chart-workflow-agent-service) |
-| `render_chart` | the engine MCP server (`bt-mcp`) | [Engine chart lane](#engine-chart-lane-mcp) |
+**There are no drawdown, rolling-return, rolling-volatility, sweep-heatmap or
+trade-PnL-distribution chart tools, and no bundle field computes any of
+them.** Do not offer one of these after a backtest. `get_results` (see the
+`backtest-analyst` skill's result contract) returns summary metrics computed
+over the whole run, never a point series, so there is nothing to chart there
+either.
 
-Never guess. If neither is present, say charting is unavailable in this session
-rather than describing a chart you cannot produce.
+**Equity is different: it exists, but you cannot read it back.** A chart
+whose `source` is `{"run": {job_id, run_id}}` — see "Build the spec" below —
+overlays a completed run's fills, trades, positions **and an equity series**
+on top of the declared indicators/detectors. `render_chart_app` can draw that
+line for the user, because the view fetches the bundle itself. But
+`render_chart`'s reply to YOU is a digest, and `equity` is one of four bundle
+keys (`markers`, `trades`, `positions`, `equity`) the digest reduces to
+`{"count": n}` **unconditionally** — never inline, regardless of size, unlike
+the `series` array, which passes through when the bundle is small enough. So
+say "an equity series exists and rendered, but its values were not returned
+to me" if the user asks what it shows — not that the equity path is
+unavailable, and not a shape or number you cannot see.
 
-**There are no equity, drawdown, rolling-return, rolling-volatility,
-sweep-heatmap or trade-PnL-distribution chart tools in either runtime.** Those
-names survive as a type union in the codebase, not as anything you can call. In
-particular, do not offer an equity or drawdown chart after a backtest: a job's
-results carry summary metrics only, with **no equity series** (see the
-`backtest-analyst` skill's result contract). Offer a price chart over the run's
-window instead, and say the equity path is not available.
+**Keep raw series out of the conversation.** Do not paste OHLC bars, indicator
+arrays or volume arrays into your reply. Report what was drawn — the series,
+their panels, the range — and a bounded slice only if the user asks for
+specific values.
 
-## Market-chart workflow (agent-service)
-
-1. Parse the requested symbol, symbols, date range, interval, chart type, overlays, volume, and comparison series.
-2. Read `references/market-chart-defaults.md` when any market chart input is missing.
-3. Read `references/chart-data-context-policy.md` before creating or analyzing a chart.
-4. Read `references/series-display-rules.md` before choosing single-panel overlays, multi-series lines, or stacked panels.
-5. Read `references/allowed-chart-scripts.md` before invoking a script.
-6. Read `references/chart-artifacts.md` when choosing a Quant chart artifact shape.
-7. Call `quant.create_market_chart` with explicit arguments. Use `lookback_days` for "last N days" requests when exact start/end timestamps are not already specified. Use the allowlisted script references only as implementation-contract context.
-8. Return the compact chart artifact from the tool.
-9. If your tool list has BOTH `quant.get_widget_payload` and a visualization
-   tool, additionally draw the chart inline in the reply — read
-   `references/inline-chat-charts.md` for the payload call and the exact
-   snippet. Without both tools, the artifact alone is the answer.
-10. Do not analyze price action unless the user asks for analysis.
-
-If the user asks for analysis, call `quant.analyze_chart_data` with the chart
-artifact `dataRef` and requested analysis modes. Keep user-facing fallback text
-inside Quant's capabilities and do not name competitor products.
-
-## Engine chart lane (MCP)
+## The engine chart lane
 
 **Two tools draw here, and they answer different questions.** Pick by what the
 user wants, not by which you saw first:
@@ -102,9 +95,8 @@ bt-server mints an id only for a render it had to queue; one it answers at once
 — which is what a bounded range does — has no id and no resource URI. A `null`
 there is not an error and not something to retry.
 
-1. Read `references/chart-data-context-policy.md` and
-   `references/series-display-rules.md` — the panel and overlay rules apply
-   here unchanged; only the call differs.
+1. Read `references/series-display-rules.md` before choosing single-panel
+   overlays, multi-series lines, or stacked panels.
 2. Find the data. `list_datasets` gives each dataset's coverage as coalesced
    spans; pick a `range` inside one of them. `list_indicators` and
    `list_detectors` give the `kind` vocabulary.
@@ -140,6 +132,15 @@ there is not an error and not something to retry.
    which one you picked and why.
 3. Build the spec. `render_chart`'s own input schema documents the envelope —
    read it rather than guessing. The parts no schema can tell you:
+   - `source` is exactly one of two shapes. `{"dataset": {provider, kind,
+     series, engine}}` draws declarations over raw data — `engine` is the
+     same `EngineSpec` shape `run_backtest` takes. `{"run": {job_id,
+     run_id}}` instead draws the same declarations over one run of a
+     **finished** job, and additionally overlays that run's fills, trades,
+     positions and equity curve (see "Equity is different" above for what
+     of that you can and cannot read back). Use `run` to review how a
+     strategy traded; use `dataset` to explore indicators before running
+     anything.
    - Declarations bind to the fixed venue ports `"venue"` (raw quote) and
      `"venue.mid"` (memoized mid). These do not vary by instrument.
    - A declaration reading another's output uses
@@ -191,7 +192,9 @@ shorts settle).
 }
 ```
 
-To draw an authored indicator or detector, name its module in
-`source.dataset.modules` — a list of `{"name": …, "version": …}` pairs — and use
-`module@version::component` as the `kind`. A component is not resolvable
-otherwise, even if some run happens to use it.
+Every `kind` you can draw is a built-in — whatever `list_indicators` and
+`list_detectors` report. There is no way to draw an author-supplied indicator
+or detector: agent-authored modules, the build service and the
+`module@version::component` syntax were all removed in the 2026-08-14 service
+consolidation. If a user asks for a custom indicator, compose it from built-in
+kinds (declarations can read each other's outputs) or say it is not available.

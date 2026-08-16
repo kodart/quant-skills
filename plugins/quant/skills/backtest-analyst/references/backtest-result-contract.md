@@ -56,6 +56,38 @@ id returned by `run_backtest` / `run_sweep` / `run_walk_forward`.
 - Recommend follow-up tests (longer sample, more instruments, cost stress,
   walk-forward) before recommending a change to the strategy itself.
 
+## `warnings` and `rejection_reasons`
+
+`get_results` carries a `warnings` array of finished English sentences the
+server wrote about this job. **It is absent on a healthy job, not an empty
+list**, so its presence is itself the signal — the same convention
+`duplicate_runs` uses. Two things put sentences in it, and both fire on the
+same threshold: a run with strictly more `orders_rejected` than `trade_count`.
+
+- **Per row**, for any of the ten leaderboard rows that crosses it. The
+  sentence names the count, the ratio, and the single most common cause. A row
+  that filled *nothing* gets a different sentence — "it never traded at all" —
+  because near-zero metrics on a run that never traded read as a mild loss and
+  are not one.
+- **Job-wide**, counting every scored run rather than the leaderboard's ten.
+  This exists because a badly-refused run usually scores near-zero activity and
+  so ranks OFF the leaderboard entirely: without it, the most broken part of a
+  sweep is the part you cannot see. When this fires, a clean-looking top ten is
+  not evidence the sweep was clean.
+
+`rejection_reasons` is the per-cause breakdown of `orders_rejected`, a
+`{reason: count}` map beside `metrics`. It reaches leaderboard rows on
+`get_results` and rows on `query_runs`. It is what turns the count into an
+action: `insufficient USDT` dominating means the account ran out of quote
+currency, i.e. `engine.initial_cash` was too small for the position the
+strategy kept asking for — a configuration fault, not a verdict on the
+strategy. Rerunning with more cash is the test; re-reading the Sharpe is not.
+
+**Neither field exists on `get_walk_forward_results`.** Its `cold_oos` block
+carries `total_oos_orders_rejected` instead, a single number across the scored
+folds — nonzero there means the same problem, with no per-fold breakdown and no
+sentence written for you.
+
 ## The `overfitting` block
 
 A sweep's results carry an `overfitting` block holding the multiple-testing
@@ -82,6 +114,35 @@ easiest way to present noise as a result.
   Sharpe), so it can be lower than the number of configurations submitted.
 - `best_run_id` names which run the verdict is about. Check it against the run
   you are discussing; the leaderboard may be sorted by a different metric.
+
+### The sample size behind it is an EFFECTIVE one
+
+`deflated_sharpe` is computed at an **effective sample size**, not at the raw
+number of return observations. This matters for how you talk about it.
+
+A run's observations are equity ticks, and on a quote-driven dataset that means
+one observation per *quote* — millions of them. The probability scales with the
+square root of the sample size. But adjacent mark-to-market returns on a quote
+stream are autocorrelated while the statistic assumes independent observations,
+so the raw count overstates the information content. The server estimates the
+lag-1 autocorrelation and deflates the count accordingly before computing
+anything.
+
+**The distinction that matters is DENSITY versus SPAN, and it is easy to get
+backwards.**
+
+- **Sampling the same period more finely buys nothing.** Ten times as many
+  quotes over the same three months makes each observation ten times more
+  correlated with its neighbour, and the correction cancels the extra count
+  almost exactly. This is the case the correction exists for.
+- **A genuinely longer window DOES buy a stronger verdict.** `n_eff` is
+  linear in the observation count at a fixed correlation, so doubling the
+  calendar span roughly doubles `n_eff` — it is a constant haircut, not a
+  cancellation. Suggesting more history is legitimate advice; suggesting
+  finer ticks is not.
+
+One more consequence: **a lower number than you might expect is the correction
+working**, not a broken run. Report the verdict as it stands.
 
 ### `n_trials: 1` is a different statistic wearing the same field
 

@@ -1,7 +1,7 @@
 {
   "name": "quant",
-  "description": "Author, run and honestly judge trading strategies on the Quant backtesting engine",
-  "version": "0.7.2",
+  "description": "Research markets and honestly analyze backtests on the Quant engine's built-in strategies, indicators, detectors and charts. Authoring was removed in the 2026-08-14 service consolidation.",
+  "version": "0.9.0",
   "author": {
     "name": "Quant"
   },

@@ -28,7 +28,7 @@ Compute NATR, volatility index, price change, and correlation from dataset
 bars fetched via the chart/data lane, or — when available — get them
 already computed by `scan_datasets` in one call (see below). Without the
 scan tool, compute per dataset and rank yourself; keep raw series out of
-context (summaries only). The fetch mechanism is `render_chart` over the window you
+context (summaries only). The fetch mechanism is `render_chart_fallback` over the window you
 want: for a bounded window the render answers at once and the series comes
 back inline in the response (`chart_id`/`bundle_resource` usually `null`,
 matching the charting skill's engine-lane description). Only when the render

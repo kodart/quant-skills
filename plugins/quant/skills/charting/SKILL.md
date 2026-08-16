@@ -1,6 +1,6 @@
 ---
 name: charting
-description: Draw price, indicator and detector charts on the Quant engine with render_chart and render_chart_app, keeping raw series data out of model context.
+description: Draw price, indicator and detector charts on the Quant engine — render_chart by default for anything the user wants to see, render_chart_fallback when you need the values or the host cannot render a view — keeping raw series data out of model context.
 ---
 
 # Charting
@@ -8,8 +8,8 @@ description: Draw price, indicator and detector charts on the Quant engine with 
 Use this skill when the user asks to show, chart, plot, or visualize prices,
 indicators, volume, comparisons, or backtest-related series.
 
-**There is one chart lane: the engine's MCP tools** — `render_chart`,
-`render_chart_app`, `chart_widget_payload` and `chart_status`. If your tool
+**There is one chart lane: the engine's MCP tools** — `render_chart_fallback`,
+`render_chart`, `chart_widget_payload` and `chart_status`. If your tool
 list has none of them, say charting is unavailable in this session rather than
 describing a chart you cannot produce.
 
@@ -28,9 +28,9 @@ either.
 **Equity is different: it exists, but you cannot read it back.** A chart
 whose `source` is `{"run": {job_id, run_id}}` — see "Build the spec" below —
 overlays a completed run's fills, trades, positions **and an equity series**
-on top of the declared indicators/detectors. `render_chart_app` can draw that
+on top of the declared indicators/detectors. `render_chart` can draw that
 line for the user, because the view fetches the bundle itself. But
-`render_chart`'s reply to YOU is a digest, and `equity` is one of four bundle
+`render_chart_fallback`'s reply to YOU is a digest, and `equity` is one of four bundle
 keys (`markers`, `trades`, `positions`, `equity`) the digest reduces to
 `{"count": n}` **unconditionally** — never inline, regardless of size, unlike
 the `series` array, which passes through when the bundle is small enough. So
@@ -45,22 +45,34 @@ specific values.
 
 ## The engine chart lane
 
-**Two tools draw here, and they answer different questions.** Pick by what the
-user wants, not by which you saw first:
+**`render_chart` is the default. Do not deliberate, and do not offer the user
+a choice between chart tools** — "shall I use the fallback instead?" is a
+question about our plumbing, not about their chart. Draw first.
 
-| The user wants | Call | Why |
-|---|---|---|
-| to SEE a chart | `render_chart_app` | draws an interactive view in the conversation |
-| the VALUES, to reason about | `render_chart` | returns the series to you |
+| Situation | Call |
+|---|---|
+| **Anything the user wants to SEE** — show, draw, plot, chart | `render_chart` |
+| YOU need the values to reason about | `render_chart_fallback` |
+| `render_chart` refused: this host cannot render a view | `render_chart_fallback` |
 
-**`render_chart_app` being in your tool list does NOT mean this host can draw
+Those are the only two exceptions, and both are conditions you can check —
+the second one the tool tells you outright — so neither needs the user's
+input.
+
+**The names changed at api_version 18, and `render_chart` means something new.**
+It used to be the data tool; it is now the view. If a server reports 17 or
+lower, `render_chart` still returns the series and the view is called
+`render_chart_app` — check the version this bundle declares against what the
+server reports before following any of this.
+
+**`render_chart` being in your tool list does NOT mean this host can draw
 it.** It is registered unconditionally, so it is offered everywhere; only the
 host's `initialize` says whether a view can appear, and you never see that.
 MCP Apps is supported by Claude web and desktop, VS Code, Goose and Postman —
 Claude Code is not among them.
 
 So let the tool answer. On a host that cannot render, it refuses, naming
-`render_chart`: switch to that and say the interactive view is unavailable
+`render_chart_fallback`: switch to that and say the interactive view is unavailable
 here, rather than reporting a chart nobody can see. (Against a server that
 predates that check, the failure is silent instead — you get "view opened"
 and no view. If the user says no chart appeared, believe them and fall back;
@@ -73,18 +85,27 @@ nothing in context. Two consequences worth holding on to:
 
 - **You cannot describe what it drew.** You never received the series. Say what
   you charted, not what it shows. If the user then asks about the shape, call
-  `render_chart` for the numbers.
+  `render_chart_fallback` for the numbers.
 - **Never call `chart_widget_payload` yourself.** It is the view's own data
   call. Calling it directly dumps the whole series into the transcript, which
   is exactly the cost this lane avoids — and it hands you a payload you would
   then have to summarize by eye.
 
-A host that negotiated MCP Apps can still fail to mount the view — that has
-been reported for custom remote connectors. So "view opened" is what the
-server offered, not proof of what the user sees. If they say no chart
-appeared, fall back to `render_chart` rather than insisting one did.
+A host that negotiated MCP Apps can still fail to mount the view. So "view
+opened" is what the server offered, not proof of what the user sees. If they
+say no chart appeared, believe them rather than insisting one did.
 
-`render_chart` draws indicators and detectors over a dataset, or overlays a
+**But do not treat that as a routine fallback.** An empty panel on a host that
+DID negotiate MCP Apps — Claude web or desktop, VS Code, Goose, Postman — is a
+symptom, not a quirk to route around: the tool did not refuse, so the server
+believes it succeeded. Say plainly that the view did not mount, and only then
+offer `render_chart_fallback` as a way to keep working. Measured 2026-08-16:
+quietly switching tools is what let a server-side defect look like a host
+limitation for a day — the endpoint was refusing the view's own
+`resources/read` at admission, and nothing said so, because the fallback made
+every session appear to recover.
+
+`render_chart_fallback` draws indicators and detectors over a dataset, or overlays a
 completed run's fills and PnL. It takes one spec object and returns the bundle:
 the drawn series inline when they are small enough, and `series_points_inline`
 tells you which happened. When it is `false`, each series carries only its point
@@ -130,7 +151,7 @@ there is not an error and not something to retry.
    that would fit — use the one it gives you rather than halving and retrying.
    If the user wants the whole history, chart a representative window and say
    which one you picked and why.
-3. Build the spec. `render_chart`'s own input schema documents the envelope —
+3. Build the spec. `render_chart_fallback`'s own input schema documents the envelope —
    read it rather than guessing. The parts no schema can tell you:
    - `source` is exactly one of two shapes. `{"dataset": {provider, kind,
      series, engine}}` draws declarations over raw data — `engine` is the
@@ -151,7 +172,7 @@ there is not an error and not something to retry.
      a separate stacked panel. Put oscillators on their own panel.
 4. If the call times out, it returns a `chart_id` and the chart is **still
    rendering** — call `chart_status` with that id after a pause, and again
-   until it reports `"ready"`. Do not resubmit `render_chart`: that starts a
+   until it reports `"ready"`. Do not resubmit `render_chart_fallback`: that starts a
    second render of a spec already known to be slow. Resubmit only when
    `chart_status` reports the chart is gone (expired or evicted).
 5. Report what was drawn — the series, their panels, and the range. Do not

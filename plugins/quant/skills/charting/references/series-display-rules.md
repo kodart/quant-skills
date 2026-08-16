@@ -1,7 +1,7 @@
 # Series Display Rules
 
 How to lay out what the user asked for. These are presentation rules — they
-apply to any `render_chart` / `render_chart_app` spec, and none of them is a
+apply to any `render_chart_fallback` / `render_chart` spec, and none of them is a
 substitute for reading the tool's own input schema and the catalog rows'
 `params`.
 
@@ -32,7 +32,7 @@ substitute for reading the tool's own input schema and the catalog rows'
 ## Follow-up requests
 
 "Add SMA", "add MACD", "now show it with Bollinger" — **add another entry to
-`declarations` and re-call `render_chart`**, reusing the previous spec's
+`declarations` and re-call whichever chart tool you used**, reusing that spec's
 `source`, `range` and `budget`. Do not tell the user that periods or
 parameters are not configurable; they are, through each declaration's
 `params`. Read the catalog row's `params` for the names rather than guessing.

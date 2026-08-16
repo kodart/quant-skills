@@ -1,7 +1,7 @@
 {
   "name": "quant",
   "description": "Research markets and honestly analyze backtests on the Quant engine's built-in strategies, indicators, detectors and charts. Authoring was removed in the 2026-08-14 service consolidation.",
-  "version": "0.9.1",
+  "version": "0.10.0",
   "author": {
     "name": "Quant"
   },

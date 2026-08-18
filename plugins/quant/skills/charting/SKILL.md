@@ -79,13 +79,15 @@ and no view. If the user says no chart appeared, believe them and fall back;
 you cannot see the view yourself, so their report is the only evidence there
 is.)
 
-Its result is a short acknowledgement, **not** the data — deliberately. The view
-fetches its own data through the host, so a full-resolution chart costs you
-nothing in context. Two consequences worth holding on to:
+Its result carries the range, the resolved declarations and an annotation
+tally — **never the series** — so a full-resolution chart still costs you
+nothing in context. See "`render_chart` tells you what it drew" below for
+the full shape of that result and what each `summary` state means. Two
+consequences worth holding on to:
 
-- **You cannot describe what it drew.** You never received the series. Say what
-  you charted, not what it shows. If the user then asks about the shape, call
-  `render_chart_fallback` for the numbers.
+- **You never receive the series.** Say what you charted, and what fired
+  (from the annotation tally), not the values or the shape. If the user asks
+  about those, call `render_chart_fallback` for the numbers.
 - **Never call `chart_widget_payload` yourself.** It is the view's own data
   call. Calling it directly dumps the whole series into the transcript, which
   is exactly the cost this lane avoids — and it hands you a payload you would
@@ -164,6 +166,35 @@ there is not an error and not something to retry.
      anything.
    - Declarations bind to the fixed venue ports `"venue"` (raw quote) and
      `"venue.mid"` (memoized mid). These do not vary by instrument.
+   - **A detected pattern's geometry is in `annotations`, never in
+     `markers`.** Each entry of `annotations[]` carries a `geometry` object
+     with labelled `points` (`ls`/`v1`/`head`/`v2`/`rs` for an H&S), the
+     `polylines` (the neckline), and the `levels` (`breakout`, `target`,
+     `stop`). The view draws them automatically; `render_chart_fallback`
+     returns them to you.
+
+     `markers`, `trades`, `positions` and `equity` are **run-detail only** —
+     on a `{"dataset": ...}` source they are ALWAYS `{"count": 0}`, by
+     design, and they say nothing whatsoever about detectors. Reading
+     `markers.count: 0` as "the detector emitted no geometry" is a mistake
+     that has been made repeatedly and reported as an engine limitation each
+     time. If you want to know what a detector found, read `annotations`.
+
+   - **`render_chart` tells you what it drew.** If its result carries an
+     `annotations` object, that is the tally for the chart the user is
+     looking at: `count`, and `by_decl` giving each declaration's episode
+     count and the stages present. Read it before saying anything about
+     whether a detector fired. A result carrying `"summary": "pending"`
+     means the render outlived the wait — the view still opened, and
+     `chart_status` with the `chart_id` will say when it is ready. A result
+     carrying `"summary": "refused"` is a DIFFERENT thing — bt-server
+     rejected the spec, and `status`/`body` say why. Do not poll or wait on
+     a refusal the way you would `"pending"`; fix the spec instead. A result
+     carrying `"summary": "unavailable"` means bt-server could not be
+     reached at all — `summary_error` carries the detail, and the view may
+     still have drawn, since it fetches its own data independently — so
+     this is neither a refusal to fix nor something to poll.
+
    - **Feed a pattern detector BARS, not `"venue.mid"`.** `venue.mid` is one
      sample per QUOTE — tick resolution — and a detector's `pivot_k` counts
      SAMPLES, not time, so a sane-looking `pivot_k` over ticks looks for

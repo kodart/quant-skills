@@ -223,10 +223,21 @@ there is not an error and not something to retry.
 
      **An empty result here is not evidence that a detector cannot draw.**
      `annotations.count: 0` from a tick-fed declaration looks exactly like a
-     missing-geometry limitation, and has twice been reported as one. Episodes
-     carry full `geometry` — labelled points, the neckline polyline, and
-     breakout/target/stop levels. Before concluding anything about the engine,
-     re-run the detector fed from `bar_close` at a sensible interval.
+     missing-geometry limitation, and has three times been reported as one.
+     Episodes carry full `geometry` — labelled points, the neckline polyline,
+     and breakout/target/stop levels. Before concluding anything about the
+     engine, re-run the detector fed from `bar_close` at a sensible interval.
+
+     **`scan_datasets` agrees with this lane, and did not always.** Its
+     `bar_interval_ns` now sets the bars every detector reads, so a screener
+     episode and a chart annotation are the same finding at the same interval
+     and `pivot_k`. Before that, the screener ran these fourteen kinds on raw
+     ticks: on 7 days of BTCUSDT it reported a "confirmed" inverse H&S
+     spanning 123 MILLISECONDS, which read as a pattern this lane had missed
+     and produced exactly the false limitation above. **Do not use a screener
+     count as the oracle for whether a chart is drawing correctly** — compare
+     like for like, and check `latest.first_ts`/`last_ts` before believing any
+     episode.
    - A declaration reading another's output uses
      `{"Decl": {"id": N, "output": "signal"}}`. Omit `output` **only** when the
      source declaration has exactly one — `macd`, `bollinger` and the other

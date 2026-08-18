@@ -122,6 +122,25 @@ table's tolerances assume. The charting skill's declaration section has the
 full rule and the measured before/after; an empty result from a tick-fed
 declaration is NOT evidence the detector found nothing.
 
+**In `scan_datasets`, `bar_interval_ns` is that timeframe** — it sets the bars
+every detector on the row reads, so the tables below are calibrated against it
+and you do not wire anything yourself. Pick it the way you would pick a chart
+timeframe, not as a metrics detail: it governs `natr`/`volatility_index`/
+`price_change` bucketing AND detection, from one value.
+
+Two consequences worth holding on to:
+
+- **A screener episode and a chart annotation are now the same finding.** If
+  `scan_datasets` at `bar_interval_ns: 3600000000000` reports an `hns`
+  episode, a chart declaration chained through `time_bars(3600000000000)` ->
+  `bar_close` -> `hns` with the same `pivot_k` draws that same pattern. When
+  they disagree, check the interval and `pivot_k` match before suspecting
+  either lane.
+- **Read `latest.first_ts`/`last_ts` before believing an episode.** They are
+  the honest sanity check on whether a hit is structure or noise: a "pattern"
+  spanning less time than a couple of your bars is not one, whatever `stage`
+  says.
+
 - `sr_levels` — multi-touch horizontal S/R. Params: `pivot_k` (40-candle
   search ≈ 20), `merge_tol` (0.002 on 1m … 0.0125 on 1d — scale by
   timeframe), `min_touches` (2), `lookback` (1000), `emit_forming`.

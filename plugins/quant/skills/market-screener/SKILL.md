@@ -112,6 +112,16 @@ All params below are required — the engine has no defaults for them except
 `emit_forming`, so pass each one explicitly; the parenthesized values are
 recommended starting points, not defaults.
 
+**Every `pivot_k` below is quoted in CANDLES, so the declaration has to be
+fed candles for those numbers to mean anything.** `pivot_k` counts input
+SAMPLES, and a chart declaration bound to `"venue.mid"` gets one sample per
+QUOTE — so a `pivot_k` chosen off these tables, wired to the raw mid, searches
+a few quotes rather than 40 candles and reports nothing. Chain
+`time_bars(interval_ns)` -> `bar_close` -> the detector, at the timeframe the
+table's tolerances assume. The charting skill's declaration section has the
+full rule and the measured before/after; an empty result from a tick-fed
+declaration is NOT evidence the detector found nothing.
+
 - `sr_levels` — multi-touch horizontal S/R. Params: `pivot_k` (40-candle
   search ≈ 20), `merge_tol` (0.002 on 1m … 0.0125 on 1d — scale by
   timeframe), `min_touches` (2), `lookback` (1000), `emit_forming`.

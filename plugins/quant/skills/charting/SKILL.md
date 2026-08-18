@@ -164,6 +164,38 @@ there is not an error and not something to retry.
      anything.
    - Declarations bind to the fixed venue ports `"venue"` (raw quote) and
      `"venue.mid"` (memoized mid). These do not vary by instrument.
+   - **Feed a pattern detector BARS, not `"venue.mid"`.** `venue.mid` is one
+     sample per QUOTE — tick resolution — and a detector's `pivot_k` counts
+     SAMPLES, not time, so a sane-looking `pivot_k` over ticks looks for
+     swings a few quotes wide and finds micro-noise instead of structure.
+     Measured on BTCUSDT quotes over 14 days: `hns` with `pivot_k: 3` on
+     `venue.mid` reported **0 episodes**, while the same detector with the
+     same `pivot_k` on 1-hour bar closes reported a **confirmed** pattern with
+     full geometry. Chain the declarations:
+
+     ```
+     time_bars(interval_ns)  ->  bar_close  ->  hns / double / triple / ...
+     ```
+
+     `bar_close` is not optional plumbing: a detector takes `f64`, and wiring
+     one straight to `time_bars` is refused with
+     `TypeMismatch {expected: "f64", got: "bar"}`. Pick `interval_ns` as the
+     timeframe the user is thinking in (`3600000000000` for 1h) — that, not
+     `pivot_k`, is the knob that decides what counts as a swing.
+
+     This applies to every chart-pattern and level detector (`hns`, `double`,
+     `triple`, `triangle`, `wedge`, `flag`, `cup`, `breakout`, `sr_levels`,
+     `trendlines`). The eight CANDLE detectors — `hammer`, `doji`,
+     `engulfing`, `star`, `harami`, `piercing`, `soldiers_crows`, `tweezer` —
+     read bar shape and take the `time_bars` output DIRECTLY, with no
+     `bar_close` hop.
+
+     **An empty result here is not evidence that a detector cannot draw.**
+     `annotations.count: 0` from a tick-fed declaration looks exactly like a
+     missing-geometry limitation, and has twice been reported as one. Episodes
+     carry full `geometry` — labelled points, the neckline polyline, and
+     breakout/target/stop levels. Before concluding anything about the engine,
+     re-run the detector fed from `bar_close` at a sensible interval.
    - A declaration reading another's output uses
      `{"Decl": {"id": N, "output": "signal"}}`. Omit `output` **only** when the
      source declaration has exactly one — `macd`, `bollinger` and the other

@@ -26,8 +26,24 @@ substitute for reading the tool's own input schema and the catalog rows'
   `{"Decl": {"id": N, "output": "signal"}}`. Omit `output` **only** when the
   source declaration has exactly one — `macd`, `bollinger` and the other
   multi-output kinds error rather than silently picking the first.
-- Declarations bind to the fixed venue ports `"venue"` (raw quote) and
-  `"venue.mid"` (memoized mid). These do not vary by instrument.
+- **Which ports exist is decided by the dataset's `kind`, and the two sets
+  are DISJOINT — not additive.** A `quotes` or `seconds` dataset gives
+  `"venue"` (raw quote) and `"venue.mid"` (memoized mid); a `trades` dataset
+  gives `"venue.trades"` (the raw tape) and NOTHING ELSE — it registers no
+  venue port, so `"venue.mid"` does not exist there and binding it fails the
+  whole request with `unknown port "venue.mid"`. Neither set varies by
+  instrument.
+- **On a trade tape, route an indicator through the bars.**
+  `venue.trades -> trade_bars(interval_ns) -> bar_close -> sma/rsi/...`, the
+  same hop a price detector takes. There is no port that hands an f64 price
+  straight off a tape, and `"venue.mid"` is not a fallback for one.
+- **A `bar_volume` series belongs on its own stacked panel**
+  (`"panel": {"Named": "volume"}`), never overlaid on price: it is a
+  histogram in size units, and putting it on the price panel flattens the
+  candles. It is also the one series whose absence is meaningful — a
+  mid-derived candle carries `0.0` volume by design, so do not draw a volume
+  panel for a `quotes` dataset and do not describe those zeros as low
+  activity.
 
 ## Follow-up requests
 

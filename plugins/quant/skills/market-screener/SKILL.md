@@ -16,11 +16,39 @@ is live. Say so when presenting results.
   trendline and formation detectors on any dataset via the chart lane.
 - CANNOT: see the live market, order books, densities (no historical depth
   data — do not fake them), liquidations, open interest, or funding. Also
-  CANNOT compute Volume or Volume splash today — the chart/data lane's bar
-  payloads carry only open/high/low/close, no traded volume field; skip
-  those two metrics and say why rather than inventing a number.
+  CANNOT compute Volume or Volume splash **in this screener lane** — the bars
+  it reads are aggregated from the quote MIDPOINT and carry no traded volume;
+  skip those two metrics and say why rather than inventing a number.
 - Correlation requires a reference dataset (e.g. BTC) in the workspace; if
   none exists, skip it and say why.
+
+**Volume is not missing from the engine — it is missing from THIS lane, and
+the difference matters.** On a server at `API_VERSION` 23 or later the chart
+lane can draw real traded volume: a `kind=trades` dataset exposes a
+`venue.trades` port, `trade_bars` aggregates the raw tape into real traded
+candles, and `bar_volume` draws the size per bar (see the `charting` skill).
+`scan_datasets` cannot use any of that, and **there is no way to ask it to.**
+Its request body is `datasets`, `window`, `bar_interval_ns`, `metrics`,
+`natr_period`, `reference`, `detectors`, `sort` — no chart-kind and no
+declaration field anywhere. The declaration graph is built server-side from
+the `detectors` list over quote-mid bars, so a volume kind is not something
+the scan lane accepts and rejects; it is something the scan lane has no
+vocabulary for. The two refusals that DO exist are different shapes:
+
+- an unrecognized name in `metrics` or `sort.by` is a **request-level 400**
+  naming the offender. The whole vocabulary is `natr`, `volatility_index`,
+  `price_change`, `correlation` — there is no volume metric to ask for;
+- a `kind=trades` dataset named in `datasets` gets that **row** a
+  `dataset kind unsupported` warning and no metrics. A null `datasets`
+  selector never picks a trades dataset up at all.
+
+So do not go hunting a type refusal here and do not report one to a user —
+nothing will produce it. Say the screener lane reads MIDPOINTS, and take the
+candidate to the chart lane over a trades dataset if the user wants volume.
+Do not tell the user the engine has no volume; this skill said that until
+2026-08-19, and then briefly claimed a `TypeMismatch` refusal that never
+existed. Both were wrong in the same direction: the boundary is which LANE
+you are in, not an error you can trigger.
 
 ## Screener metrics (definitions in references/screener-metrics.md)
 
@@ -39,14 +67,15 @@ decimated series are silently wrong. Compute metrics only over windows small
 enough to come back undecimated; if unsure, shrink the window rather than
 trust a wide one, and never compute statistics from a decimated series.
 Volume and Volume splash are listed for completeness but are **not
-currently computable** — see the CANNOT list above.
+computable in this lane** — see the CANNOT list above for where they ARE
+available.
 
 | Metric | One-line definition | Computable now? |
 |---|---|---|
 | NATR | mean True Range over N candles ÷ last price × 100 | yes — via scan_datasets or chart fallback |
 | Volatility index | stddev of ln(close/open) over the window | yes — via scan_datasets or chart fallback |
-| Volume | Σ(candle volume × price) over the window | **no — bars carry no volume field** |
-| Volume splash | window volume ÷ average volume of a longer reference window | **no — depends on Volume** |
+| Volume | Σ(candle volume × price) over the window | **no in this lane — screener bars are mid-derived and carry no volume; the chart lane's `trade_bars` does** |
+| Volume splash | window volume ÷ average volume of a longer reference window | **no in this lane — depends on Volume** |
 | Price change | (last − open of candle N back) ÷ that open × 100 | yes — via scan_datasets or chart fallback |
 | Correlation | Pearson r of log returns vs the reference dataset | yes — via scan_datasets or chart fallback (needs a reference dataset) |
 
@@ -67,6 +96,22 @@ literally "every dataset" — an explicitly named non-quotes dataset instead
 comes back as a row-level warning (dataset kind unsupported), not an
 error. Volume and Volume splash are not served by the scan lane either;
 same missing-data reason as the CANNOT list above.
+
+**The screener lane never fetches missing data, and its two halves fail
+differently.** A scan CLIPS your window down to what the dataset actually
+covers and reports the result in `effective_start_ns`/`effective_end_ns` — so
+a range reaching past coverage comes back as a normal row computed over a
+SHORTER window, not as an error. Compare those two fields against what you
+asked for before reading a metric as "what moved over the last month"; only a
+dataset with zero coverage in the window fails its row outright. A chart over
+an uncovered range refuses instead, with a `400` naming `request_dataset` —
+deliberately, since silently turning an interactive render into a long
+download is the wrong trade. Either way the fix is the same: call
+`request_dataset` with that dataset and window, watch the ingest job it
+returns until it is `complete`, then re-run the scan or the render. (Binance
+per-second datasets only, and only on a server at API_VERSION 20 or later —
+if your tool list has no `request_dataset`, report the gap rather than
+presenting a clipped window as the one you asked for.)
 
 Sort by what answers the question ("what moved" → price_change; "what is
 jumpy" → natr or volatility_index; "what decoupled" → correlation against a
@@ -118,9 +163,13 @@ SAMPLES, and a chart declaration bound to `"venue.mid"` gets one sample per
 QUOTE — so a `pivot_k` chosen off these tables, wired to the raw mid, searches
 a few quotes rather than 40 candles and reports nothing. Chain
 `time_bars(interval_ns)` -> `bar_close` -> the detector, at the timeframe the
-table's tolerances assume. The charting skill's declaration section has the
-full rule and the measured before/after; an empty result from a tick-fed
-declaration is NOT evidence the detector found nothing.
+table's tolerances assume. That is the chain for the PRICE detectors listed
+below (`sr_levels`, `trendlines` and the chart formations); the eight CANDLE
+detectors read bar shape and take `time_bars` DIRECTLY, with no `bar_close`
+hop — wiring one through `bar_close` is refused with
+`TypeMismatch {expected: "bar", got: "f64"}`. The charting skill's declaration
+section has both chains and the measured before/after; an empty result from a
+tick-fed declaration is NOT evidence the detector found nothing.
 
 **In `scan_datasets`, `bar_interval_ns` is that timeframe** — it sets the bars
 every detector on the row reads, so the tables below are calibrated against it

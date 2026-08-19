@@ -8,7 +8,7 @@ description: Use when researching trading strategy ideas, market evidence, assum
 Use controlled research before making factual claims about markets, trading
 strategy evidence, recent events, or external documentation.
 
-**The Quant MCP server provides no research tools.** Its 21 tools are data,
+**The Quant MCP server provides no research tools.** Its 22 tools are data,
 execution, results and charting only. Web and social research come from **your
 own host's** search/fetch capability — if your host has none, say so rather
 than asserting facts you did not look up. (Earlier versions of this skill named
@@ -40,6 +40,21 @@ Workflow:
    `list_strategies` for the built-in `bt.*` catalog. **You cannot author a new
    strategy** — the authoring tools were removed — so a hypothesis has to map
    onto a built-in and its parameters, or be reported as not testable here.
+
+**A window the store does not cover is not a dead end.** For Binance
+per-second datasets the server can fetch it on demand. A submit over a small
+uncovered range is accepted anyway and parked while the data lands — the job
+comes back `awaiting_data`, so watch it with `job_status`/`watch_job` and it
+proceeds on its own. A larger one is refused with a `400` naming
+`request_dataset`: call that with the same `dataset` and window, watch the
+ingest job it returns until it is `complete`, then submit the backtest. Read
+the refusal rather than narrowing on reflex — it distinguishes days that are
+merely missing here (fetchable) from days Binance never published (`absent`,
+and no retry produces them). `get_limits` reports the two ceilings
+(`ingest_max_auto_bytes` for the automatic path, the higher
+`ingest_max_bytes` for `request_dataset`) if you want to know which you are
+about to hit. If your tool list has no `request_dataset`, you are on a server
+older than API_VERSION 20 and an uncovered range really is a dead end there.
 
 ## Formations as evidence
 

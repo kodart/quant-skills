@@ -2,8 +2,8 @@
 
 Closed formulas over OHLC candles (a "bar"/"candle" here is one closed
 `(open, high, low, close)` row from the chart/data lane, at whatever
-timeframe you fetched — the chart-lane bar payload carries no volume field;
-see the Volume section below). All are computed over a **window** of the
+timeframe you fetched — a screener bar is MID-DERIVED and carries no traded
+volume; see the Volume section below). All are computed over a **window** of the
 most recent N candles ending at the last closed candle — never a candle
 still forming. Nothing here is a live feed; every value describes the
 historical window it was computed over, and results should be reported that
@@ -72,13 +72,30 @@ Served by `scan_datasets` as `volatility_index` when the tool is present.
 
 ## Volume
 
-**STATUS: not currently computable.** The engine's chart-lane bar/quote
-payloads (`Bar` in `bt-core/src/bars.rs`, chart `Ohlc`) carry only
-open/high/low/close — no traded-volume field exists on any registered kind
-today. Do not fake it from price data (e.g. do not substitute range or
-tick count as a stand-in). Skip this metric and say why. The formula below
-documents the definition for if/when a volume-carrying lane lands. The
-scan lane also excludes them — same missing data, recorded in the spec.
+**STATUS: not computable in the SCREENER lane.** The bars this lane reads
+are aggregated from the quote MIDPOINT (`venue.mid` -> `time_bars`), and a
+midpoint has no size behind it — the chart `Ohlc`'s fifth slot carries a
+deliberate `0.0` on that path, not a measured number. Do not fake it from
+price data (e.g. do not substitute range or tick count as a stand-in).
+
+**This section previously said no traded-volume field existed on any
+registered kind, and promised the formula below "for if/when a
+volume-carrying lane lands". That lane landed on 2026-08-19.** On a server
+at `API_VERSION` 23 or later, a `kind=trades` dataset exposes a
+`venue.trades` port, the `trade_bars` kind aggregates the raw tape into real
+traded candles, and `bar_volume` draws the per-bar traded size — all in the
+CHART lane (`render_chart` / `render_chart_fallback`), and all with real
+`candle_volume_i` values the formula below can consume. `scan_datasets` still
+cannot, and cannot be asked to: its request body carries no chart-kind or
+declaration field (the declaration graph is built server-side from the
+`detectors` list over quote-mid bars), and its metric vocabulary is exactly
+`natr`, `volatility_index`, `price_change`, `correlation`. Asking for a
+`"volume"` metric is a request-level 400 for an unknown metric NAME — not a
+type refusal; naming a `kind=trades` dataset warns that row
+`dataset kind unsupported` and computes nothing. So skip this metric in a
+scan and say WHY — the screener reads midpoints — rather than saying the
+engine has no volume, and do not report a type refusal you cannot actually
+provoke.
 
 Quote-currency volume over the window, i.e. volume already expressed in
 price terms, summed per candle:
@@ -92,11 +109,10 @@ candle's `close`.
 
 ## Volume splash
 
-**STATUS: not currently computable** — this metric is a ratio of two Volume
-computations (above), so it inherits the same gap: no registered kind
-carries a traded-volume field. Skip it and say why. The formula below
-documents the definition for if/when a volume-carrying lane lands. The
-scan lane also excludes them — same missing data, recorded in the spec.
+**STATUS: not computable in the SCREENER lane** — this metric is a ratio of
+two Volume computations (above), so it inherits exactly the same boundary:
+computable over chart-lane `trade_bars` on a trade tape, not over the
+mid-derived bars a scan reads. Skip it in a scan and say why.
 
 Ratio of a short recent window's volume to a longer reference window's
 average volume, both computed with the Volume formula above:

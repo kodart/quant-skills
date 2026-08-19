@@ -40,6 +40,10 @@ Workflow:
    `list_strategies` for the built-in `bt.*` catalog. **You cannot author a new
    strategy** — the authoring tools were removed — so a hypothesis has to map
    onto a built-in and its parameters, or be reported as not testable here.
+   Read `coverage` for what is runnable NOW; a row whose `status` is
+   `"available"` has an empty `coverage` and needs `request_dataset` first,
+   and `available_from`/`available_to` describe what could be FETCHED, not
+   what is held.
 
 **A window the store does not cover is not a dead end.** For Binance
 per-second datasets the server can fetch it on demand. A submit over a small

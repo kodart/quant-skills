@@ -123,6 +123,43 @@ and no view. If the user says no chart appeared, believe them and fall back;
 you cannot see the view yourself, so their report is the only evidence there
 is.)
 
+### `coverage` is what you can chart. `available_*` is not.
+
+Since API_VERSION 24, every `list_datasets` row carries three extra fields,
+and confusing two of them draws a chart request the server refuses:
+
+- **`coverage`** — the spans the engine ALREADY HOLDS. This, and only this,
+  is what a chart or a backtest can read today.
+- **`available_from` / `available_to`** — what the vendor PUBLISHES and this
+  server COULD fetch on demand. Data at those timestamps does not exist here
+  until someone ingests it.
+- **`status`** — `"materialized"` (held) or `"available"` (fetchable).
+
+Building a chart range from `available_to` gets you
+
+    this chart's range [...] is not covered by this dataset yet ...
+    call `request_dataset` to ingest the range, then retry the chart
+
+which is the server being correct: an `available` row typically has an EMPTY
+`coverage`, and a materialized row's coverage usually ends days before
+`available_to` does, because the vendor publishes yesterday's dump while the
+engine holds only what it has ingested. Chart the end of `coverage`; reach
+for `available_to` only to decide what to `request_dataset`.
+
+Two more traps in those fields:
+
+- **`available_to` is end-EXCLUSIVE** — midnight AFTER the newest daily dump
+  — while `coverage` spans record their end inclusively. A field named like
+  a `coverage` boundary that means the opposite edge is worth re-reading
+  before you subtract from it.
+- **`null` means UNRESOLVED, never "no data"**. It shows up for a
+  multi-row query (the probe only runs for a single row), for
+  `status=materialized` (it never runs at all), for a non-`binance`
+  provider, and when the vendor lookup genuinely failed. Only the last is a
+  statement about the data. The two halves resolve independently, so a
+  symbol listed this month legitimately has `available_from: null` and a
+  real `available_to`.
+
 Its result carries the range, the resolved declarations and an annotation
 tally — **never the series** — so a full-resolution chart still costs you
 nothing in context. See "`render_chart` tells you what it drew" below for
